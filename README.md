@@ -16,7 +16,7 @@ Expected Final result: A functioning game with at least three complete levels.
 Team roles:
 Franciszek Latała - Generalist Programmer (little bit of everything)
 Adrian Zając - Generalist Programmer (little bit of everything)
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 POLSKI
 Nazwa projektu: Beat Duel
 Członkowie zespołu: Franciszek Latała, Adrian Zając
