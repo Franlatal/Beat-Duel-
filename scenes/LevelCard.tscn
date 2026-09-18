@@ -1,0 +1,121 @@
+[gd_scene format=3 uid="uid://btho4xahafquo"]
+
+[ext_resource type="Script" uid="uid://t1qqscqnrns8" path="res://scripts/LevelCard.gd" id="1_cardscr"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_normal"]
+content_margin_left = 22.0
+content_margin_top = 16.0
+content_margin_right = 22.0
+content_margin_bottom = 16.0
+bg_color = Color(0.098, 0.055, 0.157, 0.72)
+border_width_left = 6
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.902, 0.133, 0.475, 0.6)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_hover"]
+content_margin_left = 22.0
+content_margin_top = 16.0
+content_margin_right = 22.0
+content_margin_bottom = 16.0
+bg_color = Color(0.165, 0.078, 0.243, 0.9)
+border_width_left = 6
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.902, 1, 0.95)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0.2, 0.902, 1, 0.3)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_focus"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 6
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.902, 1, 0.75)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[node name="LevelCard" type="Button" unique_id=341828954]
+custom_minimum_size = Vector2(0, 104)
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 8.0
+grow_horizontal = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_card_normal")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_card_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_card_hover")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_card_normal")
+theme_override_styles/focus = SubResource("StyleBoxFlat_card_focus")
+script = ExtResource("1_cardscr")
+
+[node name="Row" type="HBoxContainer" parent="." unique_id=1762578727]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 22.0
+offset_top = 16.0
+offset_right = -22.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="TextColumn" type="VBoxContainer" parent="Row" unique_id=487258635]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="CardTitle" type="Label" parent="Row/TextColumn" unique_id=2110437078]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.973, 0.957, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "Level title"
+
+[node name="CardArtist" type="Label" parent="Row/TextColumn" unique_id=456652027]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.725, 0.659, 0.851, 1)
+theme_override_font_sizes/font_size = 16
+text = "Artist"
+
+[node name="MetaColumn" type="VBoxContainer" parent="Row" unique_id=1172376055]
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="DifficultyChips" type="HBoxContainer" parent="Row/MetaColumn" unique_id=400107191]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+theme_override_constants/separation = 6
+alignment = 2
+
+[node name="CardBPM" type="Label" parent="Row/MetaColumn" unique_id=1048704438]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.564, 0.69, 1)
+theme_override_font_sizes/font_size = 15
+text = "120 BPM"
+horizontal_alignment = 2

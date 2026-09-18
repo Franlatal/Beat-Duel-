@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="LevelData" format=3 uid="uid://2quwgvkocs2e"]
+
+[ext_resource type="Script" uid="uid://olaq6c7xundh" path="res://scripts/LevelData.gd" id="1_leveldata"]
+
+[resource]
+script = ExtResource("1_leveldata")
+id = &"tutorial"
+title = "Tutorial"
+difficulties = Array[String](["Easy", "Normal", "Hard"])
+bpm = 0.0
+description = "Learn the lanes and the timing window."

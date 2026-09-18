@@ -11,7 +11,7 @@ extends Control
 @onready var resolution_option: OptionButton = %ResolutionOption
 @onready var fullscreen_check: CheckBox = %FullscreenCheck
 
-const LEVEL_SELECT_SCENE := "res://scenes/LevelSelectPlaceholder.tscn"
+const LEVEL_SELECT_SCENE := "res://scenes/LevelSelect.tscn"
 
 func _ready() -> void:
 	play_button.pressed.connect(_on_play_pressed)
