@@ -1,18 +1,27 @@
+class_name ChartPlayer
 extends Node2D
 
-## Minimal example: plays a song and spawns a note (ColorRect) for every
-## chart note at the right moment, scrolling toward a hit line.
-## This is a starting point to prove the sync works, not a finished
-## gameplay system — swap the placeholder note visuals for your own scenes,
-## add input/hit-detection, and adjust lane_positions to match "Beat Duel"'s
-## actual lane count.
+## Plays a chart + audio pair and drives a simple note-lane display, synced
+## to the audio server's real playback position. Attach this script to the
+## root of each level's scene, then set chart_path / audio_path (and
+## track_name, if a level uses a non-Expert difficulty) in the Inspector —
+## each level just points at its own chart and song, everything else here
+## is shared. The note visuals (plain ColorRects) and hit_line_y/scroll_speed
+## are placeholders — swap in your own note scenes and add input/hit
+## detection when you're ready to move past prototyping.
 ##
-## The chart's [Song] "Offset" is already folded into chart_data.notes /
-## chart_data.segments by ChartParser, so this script just plays the audio
-## normally from the start — no extra delay or seeking needed here.
+## How "Offset" is used here, two parts working together:
+## 1. ChartParser already shifts note/segment times by Offset (time = tick
+##    time + offset), so they're correctly positioned on the audio's own
+##    internal timeline (song_time == 0 is the start of the audio file).
+## 2. This script additionally waits -Offset seconds, playing nothing, before
+##    starting the audio at all — so a chart with Offset = -3 gets 3 real
+##    seconds of silence first. Notes are still free to scroll in during
+##    that silence, so the first one arrives at the hit line right as the
+##    audio starts, rather than there being a gap of dead air on screen.
 
-@export var chart_path: String = "res://charts/song.chart"
-@export var audio_path: String = "res://charts/song.ogg"
+@export var chart_path: String = "res://music/Chart/Flower Man.chart"
+@export var audio_path: String = "res://music/Ogg/FlowerMan.ogg"
 @export var track_name: String = "ExpertSingle"
 @export var lane_positions: Array = [100.0, 200.0, 300.0, 400.0, 500.0]
 @export var hit_line_y: float = 700.0
@@ -23,6 +32,11 @@ var chart_data: Dictionary
 var audio_player: AudioStreamPlayer
 var upcoming_notes: Array = []
 var spawned_notes: Array = []
+
+# --- pre-roll silence (from a negative Offset) --------------------------
+var start_delay: float = 0.0   # seconds of silence before audio starts (Offset < 0)
+var wait_elapsed: float = 0.0
+var audio_started: bool = false
 
 # --- temporary segment display ----------------------------------------
 var segments: Array = []          # [{tick, index, time}, ...] from ChartParser
@@ -37,20 +51,39 @@ func _ready() -> void:
 		return
 	upcoming_notes = chart_data.notes.duplicate()
 	segments = chart_data.segments
+	start_delay = max(0.0, -chart_data.get("offset", 0.0))
 
 	_setup_segment_label()
 
 	audio_player = AudioStreamPlayer.new()
 	audio_player.stream = load(audio_path)
 	add_child(audio_player)
-	audio_player.play()
 
-func _process(_delta: float) -> void:
-	if audio_player == null or not audio_player.playing:
+	if start_delay <= 0.0:
+		audio_player.play()
+		audio_started = true
+	# else: _process() below starts playback once start_delay has elapsed
+
+func _process(delta: float) -> void:
+	if chart_data.is_empty():
 		return
 
-	var song_time := _get_song_time()
+	var song_time: float
 
+	if not audio_started:
+		wait_elapsed += delta
+		song_time = wait_elapsed - start_delay   # negative during the silence, 0 right as audio begins
+		if wait_elapsed >= start_delay:
+			audio_player.play()
+			audio_started = true
+	else:
+		if not audio_player.playing:
+			return
+		song_time = _get_song_time()
+
+	_update_gameplay(song_time)
+
+func _update_gameplay(song_time: float) -> void:
 	while not upcoming_notes.is_empty() and upcoming_notes[0].time - note_lead_time <= song_time:
 		_spawn_note(upcoming_notes.pop_front())
 

@@ -21,12 +21,14 @@ extends RefCounted
 ##
 ## "Offset" is applied as time = tick_time + offset: it shifts note/segment
 ## timestamps earlier (for a negative offset) or later (for a positive one),
-## relative to the audio playing normally from its own start. The audio
-## itself is NOT delayed — Offset just corrects where the charted ticks land
-## on that timeline. (Confirmed against real chart data: a -3 offset moves a
-## note charted at ~3.09s to ~0.09s, i.e. right as the song starts — exactly
-## what you'd expect from a charter using Offset to pull an early pickup note
-## back to the beginning of the track.)
+## relative to wherever the audio actually starts playing (whether that's
+## immediately, or after a pre-roll delay — see chart_player.gd, which uses
+## a negative offset as exactly such a delay). This parser only computes the
+## shifted timestamps; it doesn't decide when audio starts.
+## (Confirmed against real chart data: a -3 offset moves a note charted at
+## ~3.09s to ~0.09s relative to the audio's own start — i.e. right as the
+## song begins, exactly what you'd expect from a charter using Offset to
+## pull an early pickup note back to the beginning of the track.)
 ##
 ## Note: standard 5-fret charts use lanes 0-4 = Green/Red/Yellow/Blue/Orange.
 ## Lane 5 = forced flag, 6 = tap flag, 7 = open note (rules vary slightly by
@@ -84,7 +86,7 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 				var sustain_ticks := int(ev.args[1])
 				var raw_time := _tick_to_seconds(ev.tick, resolution, tempo_events)
 				var raw_end := _tick_to_seconds(ev.tick + sustain_ticks, resolution, tempo_events)
-				notes.append({"time": raw_time, "lane": lane, "sustain": raw_end - raw_time})
+				notes.append({"time": raw_time + offset, "lane": lane, "sustain": raw_end - raw_time})
 			elif ev.type == "E" and not ev.args.is_empty():
 				# In-track text events, e.g. "1536 = E segment1", used here to
 				# mark the start of each of the song's 3 gameplay segments.
@@ -95,7 +97,7 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 						segments.append({
 							"tick": ev.tick,
 							"index": int(num_str),
-							"time": _tick_to_seconds(ev.tick, resolution, tempo_events),
+							"time": _tick_to_seconds(ev.tick, resolution, tempo_events) + offset,
 						})
 	notes.sort_custom(func(a, b): return a.time < b.time)
 	segments.sort_custom(func(a, b): return a.time < b.time)
