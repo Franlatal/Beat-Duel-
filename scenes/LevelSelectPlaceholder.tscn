@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://dglslg8383xye"]
 
-[ext_resource type="Script" path="res://scripts/LevelSelectPlaceholder.gd" id="1_lvlph"]
+[ext_resource type="Script" uid="uid://bb8mv5xourhxd" path="res://scripts/LevelSelectPlaceholder.gd" id="1_lvlph"]
 
-[node name="LevelSelectPlaceholder" type="Control"]
+[node name="LevelSelectPlaceholder" type="Control" unique_id=1080794246]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_lvlph")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=1324897936]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,7 +20,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.059, 0.031, 0.11, 1)
 
-[node name="CenterLabel" type="Label" parent="."]
+[node name="CenterLabel" type="Label" parent="." unique_id=1346984965]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -39,7 +39,7 @@ text = "Level Select — coming soon"
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="BackButton" type="Button" parent="."]
+[node name="BackButton" type="Button" parent="." unique_id=2123790020]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 2

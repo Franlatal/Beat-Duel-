@@ -1,0 +1,115 @@
+[gd_scene format=3 uid="uid://dcahfhyea5cua"]
+
+[ext_resource type="Script" uid="uid://dvtnjgs5li44d" path="res://scripts/LevelSelect.gd" id="1_lsscr"]
+[ext_resource type="Shader" uid="uid://ie0wvauxbin3" path="res://shaders/background.gdshader" id="2_bgshd"]
+[ext_resource type="Theme" uid="uid://6rufr7xph261" path="res://themes/ui_theme.tres" id="3_theme"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_lsbg"]
+shader = ExtResource("2_bgshd")
+shader_parameter/color_top = Color(0.051, 0.027, 0.129, 1)
+shader_parameter/color_bottom = Color(0.133, 0.047, 0.212, 1)
+shader_parameter/accent_color = Color(0.2, 0.902, 1, 1)
+shader_parameter/speed = 0.25
+
+[node name="LevelSelect" type="Control" unique_id=2111731223]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("3_theme")
+script = ExtResource("1_lsscr")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1573769174]
+material = SubResource("ShaderMaterial_lsbg")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Header" type="VBoxContainer" parent="." unique_id=328878727]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 48.0
+offset_bottom = 130.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="HeaderTitle" type="Label" parent="Header" unique_id=1056195133]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.961, 0.941, 1, 1)
+theme_override_colors/font_shadow_color = Color(0.2, 0.902, 1, 0.7)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 3
+theme_override_font_sizes/font_size = 44
+text = "SELECT LEVEL"
+horizontal_alignment = 1
+uppercase = true
+
+[node name="HeaderSubtitle" type="Label" parent="Header" unique_id=678587946]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.725, 0.659, 0.851, 1)
+theme_override_font_sizes/font_size = 15
+text = "Pick a track to play"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="." unique_id=180087280]
+clip_contents = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 152.0
+offset_top = 164.0
+offset_right = -132.0
+offset_bottom = -129.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+
+[node name="LevelList" type="VBoxContainer" parent="ScrollContainer" unique_id=1232420028]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="EmptyLabel" type="Label" parent="." unique_id=286166170]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -24.0
+offset_right = 260.0
+offset_bottom = 24.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.725, 0.659, 0.851, 1)
+theme_override_font_sizes/font_size = 18
+text = "No levels found. Check LEVEL_PATHS in LevelSelect.gd."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="BackButton" type="Button" parent="." unique_id=796175507]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = -86.0
+offset_right = 180.0
+offset_bottom = -34.0
+grow_vertical = 0
+text = "BACK"

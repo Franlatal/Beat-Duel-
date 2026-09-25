@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="LevelData" format=3 uid="uid://dd0tdqnad57x0"]
+
+[ext_resource type="Script" uid="uid://olaq6c7xundh" path="res://scripts/LevelData.gd" id="1_leveldata"]
+
+[resource]
+script = ExtResource("1_leveldata")
+id = &"level_1"
+title = "Level 1"
+difficulties = Array[String](["Easy", "Normal", "Hard"])
+default_difficulty_index = 1
+bpm = 0.0
+description = "First real track."
