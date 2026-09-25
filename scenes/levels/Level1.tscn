@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://dnb8bsg4krqck"]
+
+[ext_resource type="Script" uid="uid://82040xrhctow" path="res://scripts/levels/Level1.gd" id="1_l1scr"]
+
+[node name="Level1" type="Node2D" unique_id=1705955207]
+script = ExtResource("1_l1scr")
+chart_path = "res://music/Chart/level_1.chart"
+audio_path = "res://music/Ogg/level_1.ogg"
+lane_positions = [350.0, 490.0, 630.0, 770.0]

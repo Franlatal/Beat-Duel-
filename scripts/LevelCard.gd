@@ -5,7 +5,7 @@ extends Button
 ##
 ## Instantiate it, add it to the tree, then call setup() with a LevelData.
 
-signal level_chosen(level: LevelData, difficulty: String)
+signal level_chosen(level: LevelData, difficulty: DifficultyOption)
 
 const CHIP_SCENE := preload("res://scenes/DifficultyChip.tscn")
 
@@ -15,7 +15,7 @@ const CHIP_SCENE := preload("res://scenes/DifficultyChip.tscn")
 @onready var chip_row: HBoxContainer = %DifficultyChips
 
 var level: LevelData
-var selected_difficulty: String = ""
+var selected_difficulty: DifficultyOption
 
 var _chip_group: ButtonGroup
 
@@ -54,17 +54,17 @@ func _build_chips() -> void:
 	# clear the selection on other cards.
 	_chip_group = ButtonGroup.new()
 
-	for difficulty in level.get_difficulties():
+	for option in level.get_difficulties():
 		var chip: Button = CHIP_SCENE.instantiate()
 		chip_row.add_child(chip)
-		chip.text = difficulty
+		chip.text = option.label
 		chip.button_group = _chip_group
 		chip.disabled = not level.unlocked
-		chip.button_pressed = difficulty == selected_difficulty
-		chip.pressed.connect(_on_chip_pressed.bind(difficulty))
+		chip.button_pressed = option == selected_difficulty
+		chip.pressed.connect(_on_chip_pressed.bind(option))
 
-func _on_chip_pressed(difficulty: String) -> void:
-	selected_difficulty = difficulty
+func _on_chip_pressed(option: DifficultyOption) -> void:
+	selected_difficulty = option
 
 func _on_pressed() -> void:
 	if level != null:

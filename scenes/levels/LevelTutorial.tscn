@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://db4hom3sfjyio"]
+
+[ext_resource type="Script" uid="uid://cqjrvlbc8ikpo" path="res://scripts/levels/LevelTutorial.gd" id="1_tutscr"]
+
+[node name="LevelTutorial" type="Node2D" unique_id=151177657]
+script = ExtResource("1_tutscr")
+chart_path = "res://music/Chart/tutorial.chart"
+audio_path = "res://music/Ogg/tutorial.ogg"
+track_name = "EasySingle"
+lane_positions = [490.0, 630.0]

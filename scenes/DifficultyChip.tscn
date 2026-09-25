@@ -63,8 +63,8 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
 [node name="DifficultyChip" type="Button"]
-custom_minimum_size = Vector2(40, 34)
-offset_right = 40.0
+custom_minimum_size = Vector2(0, 34)
+offset_right = 60.0
 offset_bottom = 34.0
 toggle_mode = true
 theme_override_colors/font_color = Color(0.792, 0.741, 0.878, 1)

@@ -1,14 +1,23 @@
-[gd_resource type="Resource" script_class="LevelData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="LevelData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/LevelData.gd" id="1_leveldata"]
+[ext_resource type="Script" path="res://scripts/DifficultyOption.gd" id="2_diffopt"]
+[ext_resource type="PackedScene" path="res://scenes/levels/Level1.tscn" id="3_scene"]
+
+[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_expert"]
+script = ExtResource("2_diffopt")
+label = "Expert"
+track_name = "ExpertSingle"
+lane_count = 4
 
 [resource]
 script = ExtResource("1_leveldata")
 id = &"level_1"
 title = "Level 1"
-artist = ""
-difficulties = Array[String](["Easy", "Normal", "Hard"])
-default_difficulty_index = 1
-bpm = 128.0
+artist = "Unknown Artist"
+difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_l1_expert")])
+default_difficulty_index = 0
+bpm = 160.0
 description = "First real track."
+level_scene = ExtResource("3_scene")
 unlocked = true

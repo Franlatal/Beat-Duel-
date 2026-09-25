@@ -11,8 +11,6 @@ const LEVEL_PATHS: Array[String] = [
 	"res://resources/levels/level_1.tres",
 ]
 
-## Used by any level that doesn't set its own scene_override.
-const DEFAULT_GAMEPLAY_SCENE := "res://scenes/Gameplay.tscn"
 const MAIN_MENU_SCENE := "res://scenes/MainMenu.tscn"
 
 const LEVEL_CARD_SCENE := preload("res://scenes/LevelCard.tscn")
@@ -58,15 +56,12 @@ func _load_levels() -> Array[LevelData]:
 			push_warning("LevelSelect: %s is not a LevelData resource" % path)
 	return result
 
-func _on_level_chosen(level: LevelData, difficulty: String) -> void:
+func _on_level_chosen(level: LevelData, difficulty: DifficultyOption) -> void:
+	if level.level_scene == null:
+		push_warning("LevelSelect: %s has no level_scene set" % level.title)
+		return
 	GameSession.start(level, difficulty)
-
-	# A level with exclusive features can ship its own scene; everything
-	# else goes through the shared gameplay scene.
-	if level.scene_override != null:
-		get_tree().change_scene_to_packed(level.scene_override)
-	else:
-		get_tree().change_scene_to_file(DEFAULT_GAMEPLAY_SCENE)
+	get_tree().change_scene_to_packed(level.level_scene)
 
 func _on_back_pressed() -> void:
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)

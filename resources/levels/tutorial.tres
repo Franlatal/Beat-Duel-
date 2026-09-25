@@ -1,14 +1,29 @@
-[gd_resource type="Resource" script_class="LevelData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="LevelData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/LevelData.gd" id="1_leveldata"]
+[ext_resource type="Script" path="res://scripts/DifficultyOption.gd" id="2_diffopt"]
+[ext_resource type="PackedScene" path="res://scenes/levels/LevelTutorial.tscn" id="3_scene"]
+
+[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_tut_easy"]
+script = ExtResource("2_diffopt")
+label = "Easy"
+track_name = "EasySingle"
+lane_count = 2
+
+[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_tut_normal"]
+script = ExtResource("2_diffopt")
+label = "Normal"
+track_name = "MediumSingle"
+lane_count = 3
 
 [resource]
 script = ExtResource("1_leveldata")
 id = &"tutorial"
 title = "Tutorial"
 artist = ""
-difficulties = Array[String](["Easy"])
+difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_tut_easy"), SubResource("DifficultyOption_tut_normal")])
 default_difficulty_index = 0
-bpm = 0.0
+bpm = 100.0
 description = "Learn the lanes and the timing window."
+level_scene = ExtResource("3_scene")
 unlocked = true

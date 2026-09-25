@@ -114,9 +114,11 @@ func _update_segment_label(song_time: float) -> void:
 	if active != current_segment_index:
 		current_segment_index = active
 		segment_label.text = "Segment %d" % active if active != -1 else ""
-				
 		_on_segment_changed(active)
 
+## Override in a subclass (see LevelBase.gd) for level-specific behavior
+## when the active chart segment changes. index is -1 before the first
+## segment starts.
 func _on_segment_changed(index: int) -> void:
 	pass
 
