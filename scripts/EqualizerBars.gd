@@ -1,7 +1,4 @@
 extends Control
-## Purely decorative, self-animating "equalizer" bars for a rhythm-game
-## vibe. Not driven by real audio -- just sine waves with randomized
-## phase offsets so the bars don't move in lockstep.
 
 @export var bar_count: int = 24
 @export var bar_color: Color = Color(0.902, 0.133, 0.475, 0.55)
