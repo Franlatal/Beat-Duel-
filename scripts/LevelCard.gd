@@ -21,8 +21,8 @@ var _chip_group: ButtonGroup
 
 func _ready() -> void:
 	pressed.connect(_on_pressed)
-	mouse_entered.connect(_on_hover)
-	mouse_exited.connect(_on_unhover)
+	#mouse_entered.connect(_on_hover)
+	#mouse_exited.connect(_on_unhover)
 	pivot_offset = size / 2.0
 	_refresh()
 
@@ -70,10 +70,10 @@ func _on_pressed() -> void:
 	if level != null:
 		level_chosen.emit(level, selected_difficulty)
 
-func _on_hover() -> void:
-	var tw := create_tween()
-	tw.tween_property(self, "scale", Vector2(1.02, 1.02), 0.1)
+#func _on_hover() -> void:
+	#var tw := create_tween()
+	#tw.tween_property(self, "scale", Vector2(1.02, 1.02), 0.1)
 
-func _on_unhover() -> void:
-	var tw := create_tween()
-	tw.tween_property(self, "scale", Vector2(1.0, 1.0), 0.1)
+#func _on_unhover() -> void:
+	#var tw := create_tween()
+	#tw.tween_property(self, "scale", Vector2(1.0, 1.0), 0.1)
