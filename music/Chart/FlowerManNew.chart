@@ -1,4 +1,4 @@
-﻿[Song]
+[Song]
 {
   Offset = 0
   Resolution = 480
@@ -8,7 +8,6 @@
   PreviewEnd = 0
   Genre = "rock"
   MediaType = "cd"
-  MusicStream = "C:\Users\uczeń\Desktop\Toby Fox - Flower Man (SunnieD_)\song.opus"
 }
 [SyncTrack]
 {
