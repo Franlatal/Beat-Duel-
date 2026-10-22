@@ -9,18 +9,34 @@ extends Node2D
 ## Input is handled per-lane via the lane_0 – lane_3 input actions
 ## (arrow keys by default), with Perfect / Good / Miss timing windows.
 ##
+## Hold notes: any chart note whose sustain is at least
+## min_hold_duration becomes a hold note with a tail. Hit the head as
+## usual (Perfect/Good), then keep the key down until the tail ends:
+##   - held to the end (or released within HOLD_RELEASE_GRACE of it) → "Held"
+##   - released earlier → "Dropped" (tail greys out and scrolls away)
+##   - head missed → "Miss" (tail greys out, can't be picked up again)
+##
+## Every judgement is emitted through note_judged, so scoring / HP can
+## hook in without touching this script.
+##
 ## Attach this script to the root of each level's scene, then set
 ## chart_path / audio_path (and track_name, if a level uses a
 ## non-Expert difficulty) in the Inspector — each level just points at
 ## its own chart and song, everything else here is shared.
 
-@export var chart_path: String = "res://music/Chart/Flower Man.chart"
-@export var audio_path: String = "res://music/Ogg/FlowerMan.ogg"
+## Emitted for every judgement: "Perfect", "Good", "Miss" (taps and
+## hold heads), plus "Held" / "Dropped" when a hold note's tail ends.
+signal note_judged(result: String, lane_index: int)
+
+@export var chart_path: String = "res://music/Chart/FlowerManNew.chart"
+@export var audio_path: String = "res://music/Ogg/song.ogg"
 @export var track_name: String = "ExpertSingle"
-@export var lane_positions: Array = [100.0, 200.0, 300.0, 400.0, 500.0]
+@export var lane_positions: Array = [100.0, 200.0, 300.0, 400.0]
 @export var hit_line_y: float = 950.0
 @export var scroll_speed: float = 400.0   # pixels per second
 @export var note_lead_time: float = 2.0   # seconds a note is visible before its hit time
+## Notes with a sustain shorter than this (seconds) are treated as taps.
+@export var min_hold_duration: float = 0.15
 
 # --- lane visuals ---------------------------------------------------------
 const LANE_WIDTH: float = 80.0            # width of each lane stripe
@@ -51,6 +67,18 @@ const PERFECT_WINDOW: float = 0.045
 const GOOD_WINDOW: float = 0.09
 const MISS_WINDOW: float = 0.135
 
+# --- hold notes -----------------------------------------------------------
+## Releasing a hold this close (seconds) to its end still counts as "Held".
+const HOLD_RELEASE_GRACE: float = 0.1
+## Tail width as a fraction of LANE_WIDTH.
+const TAIL_WIDTH_RATIO: float = 0.28
+const TAIL_DROPPED_COLOR := Color(0.35, 0.35, 0.38)
+
+## Lifecycle of a spawned note (stored in its "state" meta).
+## Taps only ever use PENDING; holds go PENDING → HOLDING → (removed)
+## or PENDING/HOLDING → DROPPED → (removed once off-screen).
+enum NoteState { PENDING, HOLDING, DROPPED }
+
 # --- hit feedback flash ---------------------------------------------------
 ## Per-lane flash alpha (0 = off, fades down each frame).
 var _lane_flash: Array[float] = []
@@ -63,6 +91,8 @@ var chart_data: Dictionary
 var audio_player: AudioStreamPlayer
 var upcoming_notes: Array = []
 var spawned_notes: Array = []
+## Latest song time, cached for _draw().
+var _song_time: float = 0.0
 
 # --- pre-roll silence (from a negative Offset) ----------------------------
 var start_delay: float = 0.0
@@ -123,6 +153,7 @@ func _process(delta: float) -> void:
 			return
 		song_time = _get_song_time()
 
+	_song_time = song_time
 	_update_gameplay(song_time, delta)
 
 	# Fade lane flashes
@@ -140,16 +171,45 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 	while not upcoming_notes.is_empty() and upcoming_notes[0].time - note_lead_time <= song_time:
 		_spawn_note(upcoming_notes.pop_front())
 
-	# Move spawned notes and remove missed ones
+	# Move spawned notes, resolve holds and remove missed ones
+	var viewport_h: float = get_viewport().get_visible_rect().size.y
 	var to_remove: Array[Node] = []
 	for note in spawned_notes:
 		var hit_time: float = note.get_meta("hit_time")
-		note.position.y = hit_line_y - (hit_time - song_time) * scroll_speed
+		var end_time: float = note.get_meta("end_time")
+		var lane: int = note.get_meta("lane_index")
+		var is_hold: bool = note.get_meta("is_hold")
 
-		# Auto-miss: note has passed beyond the miss window
-		if song_time > hit_time + MISS_WINDOW:
-			to_remove.append(note)
-			_on_note_result("Miss", note.get_meta("lane_index"))
+		match note.get_meta("state"):
+			NoteState.PENDING:
+				note.position.y = _time_to_y(hit_time, song_time)
+				# Auto-miss: note has passed beyond the miss window
+				if song_time > hit_time + MISS_WINDOW:
+					_on_note_result("Miss", lane)
+					if is_hold:
+						_drop_hold(note, false, song_time)
+					else:
+						to_remove.append(note)
+
+			NoteState.HOLDING:
+				# Head stays pinned to the hit line while the tail drains into it.
+				note.position.y = hit_line_y
+				if song_time >= end_time:
+					to_remove.append(note)
+					_on_note_result("Held", lane)
+				elif not Input.is_action_pressed(_action_for_lane(lane)):
+					if song_time >= end_time - HOLD_RELEASE_GRACE:
+						to_remove.append(note)
+						_on_note_result("Held", lane)
+					else:
+						_drop_hold(note, true, song_time)
+						_on_note_result("Dropped", lane)
+
+			NoteState.DROPPED:
+				note.position.y = _time_to_y(hit_time, song_time)
+				# Remove once the end of the tail has scrolled off-screen.
+				if _time_to_y(end_time, song_time) > viewport_h:
+					to_remove.append(note)
 
 	for note in to_remove:
 		spawned_notes.erase(note)
@@ -182,6 +242,10 @@ func _draw() -> void:
 			flash_col.a = _lane_flash[i] * 0.35
 			draw_rect(rect, flash_col)
 
+	# Hold-note tails (drawn here so the head sprites, being children,
+	# render on top of them)
+	_draw_hold_tails()
+
 	# Draw hit line
 	if not lane_positions.is_empty():
 		var left_x: float = lane_positions[0] - LANE_WIDTH / 2.0 - 10.0
@@ -195,17 +259,69 @@ func _draw() -> void:
 			draw_circle(Vector2(lane_positions[i], hit_line_y), 18.0, solid_col)
 			draw_arc(Vector2(lane_positions[i], hit_line_y), 18.0, 0, TAU, 32, Color(1, 1, 1, 0.4), 2.0)
 
+	# Pulsing glow on lanes whose hold note is currently being held
+	var pulse: float = 0.75 + 0.25 * sin(_song_time * 20.0)
+	for note in spawned_notes:
+		if note.get_meta("state") != NoteState.HOLDING:
+			continue
+		var lane: int = note.get_meta("lane_index")
+		var center := Vector2(lane_positions[lane], hit_line_y)
+		var glow: Color = LANE_COLORS_SOLID[lane % LANE_COLORS_SOLID.size()]
+		glow.a = 0.35 * pulse
+		draw_circle(center, 30.0, glow)
+		draw_arc(center, 30.0, 0, TAU, 32, Color(1, 1, 1, 0.7 * pulse), 3.0)
+
+func _draw_hold_tails() -> void:
+	var tail_w: float = LANE_WIDTH * TAIL_WIDTH_RATIO
+	for note in spawned_notes:
+		if not note.get_meta("is_hold"):
+			continue
+		var lane: int = note.get_meta("lane_index")
+		var x: float = lane_positions[lane]
+		var state: int = note.get_meta("state")
+
+		var bottom_y: float
+		match state:
+			NoteState.PENDING:
+				bottom_y = _time_to_y(note.get_meta("hit_time"), _song_time)
+			NoteState.HOLDING:
+				bottom_y = hit_line_y
+			_:
+				bottom_y = _time_to_y(note.get_meta("tail_start"), _song_time)
+		var top_y: float = _time_to_y(note.get_meta("end_time"), _song_time)
+		if bottom_y <= top_y:
+			continue
+
+		var col: Color = LANE_COLORS_SOLID[lane % LANE_COLORS_SOLID.size()]
+		var shine_alpha := 0.25
+		if state == NoteState.HOLDING:
+			col = col.lerp(Color.WHITE, 0.25)
+			shine_alpha = 0.5
+		elif state == NoteState.DROPPED:
+			col = TAIL_DROPPED_COLOR
+			shine_alpha = 0.08
+
+		draw_rect(Rect2(x - tail_w / 2.0, top_y, tail_w, bottom_y - top_y), col)
+		draw_circle(Vector2(x, top_y), tail_w / 2.0, col)   # rounded end cap
+		# Thin highlight stripe down the middle
+		draw_rect(Rect2(x - tail_w * 0.15, top_y, tail_w * 0.3, bottom_y - top_y), Color(1, 1, 1, shine_alpha))
+
 # --- input ----------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
 	if chart_data.is_empty():
 		return
 	for i in range(lane_positions.size()):
-		var action_name := "lane_%d" % i
-		if event.is_action_pressed(action_name):
+		if event.is_action_pressed(_action_for_lane(i)):
 			_try_hit_lane(i)
 			get_viewport().set_input_as_handled()
 			return
+
+## Input action that drives a given chart lane. Used both for presses
+## (_unhandled_input) and for checking whether a hold is still held.
+## LevelBase overrides this to spread keys out for 2/3-lane difficulties.
+func _action_for_lane(lane_index: int) -> String:
+	return "lane_%d" % lane_index
 
 func _try_hit_lane(lane_index: int) -> void:
 	var song_time := _current_song_time()
@@ -217,6 +333,8 @@ func _try_hit_lane(lane_index: int) -> void:
 	for note in spawned_notes:
 		if note.get_meta("lane_index") != lane_index:
 			continue
+		if note.get_meta("state") != NoteState.PENDING:
+			continue   # already being held, or a dead tail
 		var hit_time: float = note.get_meta("hit_time")
 		var diff := absf(song_time - hit_time)
 		if diff <= MISS_WINDOW and diff < best_diff:
@@ -236,26 +354,55 @@ func _try_hit_lane(lane_index: int) -> void:
 	else:
 		result = "Miss"
 
-	# Remove the note
-	spawned_notes.erase(best_note)
-	best_note.queue_free()
+	if best_note.get_meta("is_hold"):
+		if result == "Miss":
+			_drop_hold(best_note, false, song_time)
+		else:
+			# Head hit -- start holding; the tail is judged when it ends.
+			best_note.set_meta("state", NoteState.HOLDING)
+			best_note.position.y = hit_line_y
+	else:
+		# Remove the note
+		spawned_notes.erase(best_note)
+		best_note.queue_free()
 
 	_on_note_result(result, lane_index)
+
+## Turns a hold note into a dead, greyed-out tail that just scrolls away.
+## released_mid_hold: the head was already hit (so it's hidden and the
+## tail's bottom starts at the hit line); otherwise the head was missed.
+func _drop_hold(note: Node, released_mid_hold: bool, song_time: float) -> void:
+	note.set_meta("state", NoteState.DROPPED)
+	if released_mid_hold:
+		note.set_meta("tail_start", song_time)
+		note.visible = false
+	else:
+		note.set_meta("tail_start", note.get_meta("hit_time"))
+		note.modulate = Color(0.45, 0.45, 0.45, 0.8)
 
 func _on_note_result(result: String, lane_index: int) -> void:
 	# Lane flash
 	if lane_index < _lane_flash.size():
 		_lane_flash[lane_index] = 1.0
-		match result:
-			"Perfect":
-				_lane_flash_color[lane_index] = Color(0.3, 1.0, 0.5)
-			"Good":
-				_lane_flash_color[lane_index] = Color(1.0, 0.9, 0.3)
-			"Miss":
-				_lane_flash_color[lane_index] = Color(1.0, 0.2, 0.2)
+		_lane_flash_color[lane_index] = _result_color(result)
 
 	# Floating label
 	_spawn_feedback_label(result, lane_index)
+
+	note_judged.emit(result, lane_index)
+
+func _result_color(result: String) -> Color:
+	match result:
+		"Perfect":
+			return Color(0.3, 1.0, 0.5)
+		"Good":
+			return Color(1.0, 0.9, 0.3)
+		"Held":
+			return Color(0.4, 0.85, 1.0)
+		"Dropped":
+			return Color(1.0, 0.55, 0.2)
+		_:
+			return Color(1.0, 0.2, 0.2)   # Miss
 
 # --- feedback labels ------------------------------------------------------
 
@@ -267,13 +414,7 @@ func _spawn_feedback_label(text: String, lane_index: int) -> void:
 	label.position = Vector2(lane_positions[lane_index] - 40, hit_line_y - 50)
 	label.set_meta("lifetime", 0.6)
 	label.set_meta("age", 0.0)
-	match text:
-		"Perfect":
-			label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5))
-		"Good":
-			label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
-		"Miss":
-			label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
+	label.add_theme_color_override("font_color", _result_color(text))
 	add_child(label)
 	_feedback_nodes.append(label)
 
@@ -323,6 +464,10 @@ func _on_segment_changed(index: int) -> void:
 
 # --- helpers --------------------------------------------------------------
 
+## Screen y of a note scheduled at time t, given the current song time.
+func _time_to_y(t: float, song_time: float) -> float:
+	return hit_line_y - (t - song_time) * scroll_speed
+
 func _get_song_time() -> float:
 	var pos := audio_player.get_playback_position()
 	pos += AudioServer.get_time_since_last_mix()
@@ -351,5 +496,11 @@ func _spawn_note(note_data: Dictionary) -> void:
 	note.position.x = lane_positions[note_data.lane]
 	note.set_meta("hit_time", note_data.time)
 	note.set_meta("lane_index", note_data.lane)
+	var sustain: float = note_data.get("sustain", 0.0)
+	var is_hold: bool = sustain >= min_hold_duration
+	note.set_meta("is_hold", is_hold)
+	note.set_meta("end_time", note_data.time + (sustain if is_hold else 0.0))
+	note.set_meta("tail_start", note_data.time)
+	note.set_meta("state", NoteState.PENDING)
 	add_child(note)
 	spawned_notes.append(note)
