@@ -13,6 +13,8 @@ extends Control
 
 const LEVEL_SELECT_SCENE := "res://scenes/LevelSelect.tscn"
 
+var controls_menu: ControlsMenu
+
 func _ready() -> void:
 	play_button.pressed.connect(_on_play_pressed)
 	options_button.pressed.connect(_on_options_pressed)
@@ -29,6 +31,7 @@ func _ready() -> void:
 
 	_populate_resolutions()
 	_sync_options_ui()
+	_setup_controls_menu()
 
 	options_panel.modulate.a = 0.0
 	options_panel.visible = false
@@ -44,8 +47,9 @@ func _ready() -> void:
 func _start_title_pulse() -> void:
 	var tw := create_tween()
 	tw.set_loops()
-	tw.tween_property(title_label, "scale", Vector2(1.03, 1.03), 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(title_label, "scale", Vector2(1.0, 1.0), 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# Scaling a pixel font smears it, so pulse the brightness instead.
+	tw.tween_property(title_label, "self_modulate", Color(1.25, 1.1, 1.3), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(title_label, "self_modulate", Color(1, 1, 1), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 func _populate_resolutions() -> void:
 	resolution_option.clear()
@@ -58,6 +62,30 @@ func _sync_options_ui() -> void:
 	var idx := Settings.RESOLUTIONS.find(Settings.resolution)
 	resolution_option.selected = max(idx, 0)
 	resolution_option.disabled = Settings.fullscreen
+
+## Adds a CONTROLS button above BACK in the Options panel, and the
+## ControlsMenu overlay it opens.
+func _setup_controls_menu() -> void:
+	var controls_button := Button.new()
+	controls_button.name = "ControlsButton"
+	controls_button.text = "CONTROLS"
+	controls_button.custom_minimum_size = back_button.custom_minimum_size
+	controls_button.size_flags_horizontal = back_button.size_flags_horizontal
+	var options_box := back_button.get_parent()
+	options_box.add_child(controls_button)
+	options_box.move_child(controls_button, back_button.get_index())
+	controls_button.pressed.connect(_on_controls_pressed)
+
+	controls_menu = ControlsMenu.new()
+	var options_frame := options_panel.get_node_or_null("Panel") as Control
+	if options_frame != null:
+		controls_menu.panel_style = options_frame.get_theme_stylebox("panel")
+	controls_menu.visible = false
+	add_child(controls_menu)
+	controls_menu.closed.connect(func(): controls_button.grab_focus())
+
+func _on_controls_pressed() -> void:
+	controls_menu.open()
 
 func _on_play_pressed() -> void:
 	get_tree().change_scene_to_file(LEVEL_SELECT_SCENE)
@@ -85,10 +113,11 @@ func _on_fullscreen_toggled(enabled: bool) -> void:
 	Settings.set_fullscreen(enabled)
 	resolution_option.disabled = enabled
 
+# The pixel theme's hover box does the highlighting; on top of that the
+# button nudges a whole 6px to the right (scaling would blur pixel art).
 func _on_button_hover(b: Button) -> void:
-	var tw := create_tween()
-	tw.tween_property(b, "scale", Vector2(1.05, 1.05), 0.1)
+	b.position.x = roundf(b.position.x) + 6.0
 
 func _on_button_unhover(b: Button) -> void:
-	var tw := create_tween()
-	tw.tween_property(b, "scale", Vector2(1.0, 1.0), 0.1)
+	# Let the VBoxContainer put the button back in its slot.
+	(b.get_parent() as Container).queue_sort()
