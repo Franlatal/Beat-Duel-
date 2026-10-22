@@ -15,7 +15,7 @@ extends ChartPlayer
 ##   override it per level. Empty by default.
 
 const LEVEL_SELECT_SCENE := "res://scenes/LevelSelect.tscn"
-const UI_THEME := preload("res://themes/ui_theme.tres")
+const UI_THEME := preload("res://themes/pixel_theme.tres")
 
 ## Horizontal spacing between lane columns, in pixels.
 const LANE_SPACING := 140.0
@@ -106,6 +106,7 @@ func _setup_back_button() -> void:
 	var back_button := Button.new()
 	back_button.text = "BACK"
 	back_button.theme = UI_THEME
+	back_button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	back_button.position = Vector2(24, 24)
 	back_button.pressed.connect(_on_back_pressed)
 	layer.add_child(back_button)

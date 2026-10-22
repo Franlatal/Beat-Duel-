@@ -1,8 +1,9 @@
 extends Node
 ## Autoload singleton. Register this as "Settings" under
 ## Project Settings > Autoload so it's reachable from any scene.
-## Holds the current audio/display settings, applies them to the
-## engine, and persists them to user://settings.cfg between sessions.
+## Holds the current audio/display settings and key bindings, applies
+## them to the engine, and persists them to user://settings.cfg between
+## sessions.
 
 const SETTINGS_PATH := "user://settings.cfg"
 
@@ -13,11 +14,25 @@ const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(2560, 1440),
 ]
 
+## Input actions the player can rebind in Options > Controls, in the
+## order they're listed, with their on-screen names.
+const REBINDABLE_ACTIONS := {
+	&"lane_0": "Lane Left",
+	&"lane_1": "Lane Up",
+	&"lane_2": "Lane Down",
+	&"lane_3": "Lane Right",
+}
+
 var master_volume: float = 1.0 # 0.0 - 1.0
 var fullscreen: bool = false
 var resolution: Vector2i = Vector2i(1920, 1080)
 
+## Keyboard events each rebindable action had in project.godot, captured
+## before any saved bindings are applied. Used by reset_controls().
+var _default_keys: Dictionary = {}
+
 func _ready() -> void:
+	_capture_default_keys()
 	load_settings()
 	apply_all()
 
@@ -59,12 +74,88 @@ func set_resolution(res: Vector2i) -> void:
 		apply_window_mode()
 	save_settings()
 
+# --- controls -------------------------------------------------------------
+
+func _capture_default_keys() -> void:
+	for action in REBINDABLE_ACTIONS:
+		if not InputMap.has_action(action):
+			push_warning("Settings: input action '%s' is missing from the Input Map." % action)
+			InputMap.add_action(action)
+		_default_keys[action] = get_action_key(action)
+
+## The keyboard event bound to an action, or null if it has none.
+func get_action_key(action: StringName) -> InputEventKey:
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			return ev
+	return null
+
+## Display text for an action's key, e.g. "Left" or "D".
+func get_action_key_text(action: StringName) -> String:
+	var ev := get_action_key(action)
+	if ev == null:
+		return "---"
+	return key_event_text(ev)
+
+func key_event_text(ev: InputEventKey) -> String:
+	return OS.get_keycode_string(_layout_keycode(ev))
+
+## Binds a key to an action, replacing its old keyboard binding and
+## leaving gamepad/mouse bindings alone. If another rebindable action
+## already uses that key, the two actions swap keys.
+func rebind_action(action: StringName, key: InputEventKey) -> void:
+	var new_key := _copy_key(key)
+	var old_key := get_action_key(action)
+	for other in REBINDABLE_ACTIONS:
+		if other != action and _same_key(get_action_key(other), new_key):
+			_set_action_key(other, old_key)
+	_set_action_key(action, new_key)
+	save_settings()
+
+func reset_controls() -> void:
+	for action in REBINDABLE_ACTIONS:
+		_set_action_key(action, _default_keys.get(action))
+	save_settings()
+
+func _set_action_key(action: StringName, key: InputEventKey) -> void:
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			InputMap.action_erase_event(action, ev)
+	if key != null:
+		InputMap.action_add_event(action, key)
+
+func _copy_key(key: InputEventKey) -> InputEventKey:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = key.physical_keycode
+	if ev.physical_keycode == KEY_NONE:
+		ev.keycode = key.keycode
+	return ev
+
+func _same_key(a: InputEventKey, b: InputEventKey) -> bool:
+	if a == null or b == null:
+		return false
+	return _layout_keycode(a) == _layout_keycode(b)
+
+## The key's keycode on the current keyboard layout, whether the event
+## was bound by physical key or by keycode.
+func _layout_keycode(ev: InputEventKey) -> Key:
+	if ev.physical_keycode != KEY_NONE:
+		return DisplayServer.keyboard_get_keycode_from_physical(ev.physical_keycode)
+	return ev.keycode
+
+# --- persistence ----------------------------------------------------------
+
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master_volume", master_volume)
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("display", "resolution_x", resolution.x)
 	cfg.set_value("display", "resolution_y", resolution.y)
+	for action in REBINDABLE_ACTIONS:
+		var ev := get_action_key(action)
+		# Saved as [physical_keycode, keycode]; [0, 0] means unbound.
+		var codes := [0, 0] if ev == null else [ev.physical_keycode, ev.keycode]
+		cfg.set_value("controls", action, codes)
 	cfg.save(SETTINGS_PATH)
 
 func load_settings() -> void:
@@ -77,3 +168,14 @@ func load_settings() -> void:
 	var rx: int = cfg.get_value("display", "resolution_x", resolution.x)
 	var ry: int = cfg.get_value("display", "resolution_y", resolution.y)
 	resolution = Vector2i(rx, ry)
+	for action in REBINDABLE_ACTIONS:
+		if not cfg.has_section_key("controls", action):
+			continue
+		var codes: Array = cfg.get_value("controls", action, [0, 0])
+		if codes.size() != 2 or (codes[0] == 0 and codes[1] == 0):
+			_set_action_key(action, null)
+			continue
+		var ev := InputEventKey.new()
+		ev.physical_keycode = codes[0]
+		ev.keycode = codes[1]
+		_set_action_key(action, ev)
