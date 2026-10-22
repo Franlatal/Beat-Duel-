@@ -44,7 +44,6 @@ func _ready() -> void:
 	if difficulty != null:
 		track_name = difficulty.track_name
 		lane_positions = _lane_positions_for(difficulty.lane_count)
-		_remap_input_actions(difficulty.lane_count)
 	else:
 		# Direct-run (F6) fallback -- no GameSession data yet, so this
 		# scene's own Inspector values for track_name/lane_positions are
@@ -64,41 +63,16 @@ func _lane_positions_for(count: int) -> Array:
 		positions.append(start + LANE_SPACING * i)
 	return positions
 
-## Remaps the chart's lane indices so pressing the right physical key
-## hits the matching visual lane. When there are fewer than 4 lanes the
-## chart still uses sequential lane values (0, 1, …), but we want the
-## player's keys spread across the arrow pad naturally.
-## This is done by re-ordering the input actions so that input action
-## "lane_<physical>" triggers for visual lane <i>.
-## Actually, the simpler approach: override _unhandled_input to map
-## physical keys to chart lanes. We do this by storing a mapping array.
-func _remap_input_actions(count: int) -> void:
-	# Nothing special needed for remapping at this stage -- the chart
-	# uses lanes 0..count-1 and input actions lane_0..lane_3 map to
-	# Left/Up/Down/Right. For fewer lanes we want spread keys, so we
-	# remap which action index maps to which chart lane.
-	pass
-
-## Override ChartPlayer's _unhandled_input to spread keys for 2/3 lanes.
-func _unhandled_input(event: InputEvent) -> void:
-	if chart_data.is_empty():
-		return
-	var count := lane_positions.size()
-	var key_map: Array = LANE_KEY_MAP.get(count, [])
-	if key_map.is_empty():
-		# Fallback: sequential mapping for unexpected lane counts
-		for i in range(count):
-			key_map.append(i)
-
+## Override ChartPlayer's lane -> input action mapping to spread keys for
+## 2/3 lanes. ChartPlayer uses this both for presses and for checking
+## whether a hold note's key is still held down.
+func _action_for_lane(lane_index: int) -> String:
 	# key_map[chart_lane] = action_index
-	# So we iterate over chart lanes and check if their mapped action was pressed
-	for chart_lane in range(key_map.size()):
-		var action_index: int = key_map[chart_lane]
-		var action_name := "lane_%d" % action_index
-		if event.is_action_pressed(action_name):
-			_try_hit_lane(chart_lane)
-			get_viewport().set_input_as_handled()
-			return
+	var key_map: Array = LANE_KEY_MAP.get(lane_positions.size(), [])
+	if lane_index < key_map.size():
+		return "lane_%d" % key_map[lane_index]
+	# Fallback: sequential mapping for unexpected lane counts
+	return "lane_%d" % lane_index
 
 func _setup_back_button() -> void:
 	var layer := CanvasLayer.new()
