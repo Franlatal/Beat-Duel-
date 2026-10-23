@@ -173,6 +173,21 @@ size_flags_horizontal = 3
 size_flags_vertical = 4
 value = 100.0
 
+[node name="DisplayModeRow" type="HBoxContainer" parent="OptionsPanel/Panel/Margin/VBox" unique_id=521654743]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="DisplayModeLabel" type="Label" parent="OptionsPanel/Panel/Margin/VBox/DisplayModeRow" unique_id=1208209085]
+custom_minimum_size = Vector2(176, 0)
+layout_mode = 2
+theme_type_variation = &"SettingLabel"
+text = "Display"
+
+[node name="DisplayModeOption" type="OptionButton" parent="OptionsPanel/Panel/Margin/VBox/DisplayModeRow" unique_id=1848040256]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="ResolutionRow" type="HBoxContainer" parent="OptionsPanel/Panel/Margin/VBox" unique_id=970433524]
 layout_mode = 2
 theme_override_constants/separation = 16
@@ -187,20 +202,6 @@ text = "Resolution"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-
-[node name="FullscreenRow" type="HBoxContainer" parent="OptionsPanel/Panel/Margin/VBox" unique_id=521654743]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="FullscreenLabel" type="Label" parent="OptionsPanel/Panel/Margin/VBox/FullscreenRow" unique_id=1208209085]
-custom_minimum_size = Vector2(176, 0)
-layout_mode = 2
-theme_type_variation = &"SettingLabel"
-text = "Fullscreen"
-
-[node name="FullscreenCheck" type="CheckBox" parent="OptionsPanel/Panel/Margin/VBox/FullscreenRow" unique_id=1848040256]
-unique_name_in_owner = true
-layout_mode = 2
 
 [node name="BackButton" type="Button" parent="OptionsPanel/Panel/Margin/VBox" unique_id=1446082635]
 unique_name_in_owner = true

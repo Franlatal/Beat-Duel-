@@ -7,6 +7,13 @@ extends Node
 
 const SETTINGS_PATH := "user://settings.cfg"
 
+enum DisplayMode { WINDOWED, BORDERLESS, EXCLUSIVE }
+
+## On-screen names for DisplayMode, in enum order.
+const DISPLAY_MODE_NAMES: Array[String] = ["Windowed", "Borderless", "Fullscreen"]
+
+## Window sizes offered in windowed mode. The game's picture scales to
+## fit whichever one is picked (see _setup_scaling()).
 const RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1600, 900),
@@ -24,7 +31,7 @@ const REBINDABLE_ACTIONS := {
 }
 
 var master_volume: float = 1.0 # 0.0 - 1.0
-var fullscreen: bool = false
+var display_mode: int = DisplayMode.WINDOWED # a DisplayMode
 var resolution: Vector2i = Vector2i(1280, 720)
 
 ## Keyboard events each rebindable action had in project.godot, captured
@@ -32,6 +39,7 @@ var resolution: Vector2i = Vector2i(1280, 720)
 var _default_keys: Dictionary = {}
 
 func _ready() -> void:
+	_setup_scaling()
 	_capture_default_keys()
 	load_settings()
 	apply_all()
@@ -45,10 +53,29 @@ func apply_volume() -> void:
 	AudioServer.set_bus_volume_db(idx, linear_to_db(clamp(master_volume, 0.0001, 1.0)))
 	AudioServer.set_bus_mute(idx, master_volume <= 0.0001)
 
+## Draws the game at its design size (the viewport size in
+## project.godot) and scales it to fill the window, adding black bars
+## when the window's shape doesn't match. canvas_items keeps the pixel
+## font sharp at any size.
+func _setup_scaling() -> void:
+	var root := get_tree().root
+	root.content_scale_size = Vector2i(
+		ProjectSettings.get_setting("display/window/size/viewport_width", 1920),
+		ProjectSettings.get_setting("display/window/size/viewport_height", 1080))
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+
+func is_fullscreen() -> bool:
+	return display_mode != DisplayMode.WINDOWED
+
 func apply_window_mode() -> void:
-	if fullscreen:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-		return
+	match display_mode:
+		DisplayMode.BORDERLESS:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+			return
+		DisplayMode.EXCLUSIVE:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+			return
 	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 		# Leaving fullscreen finishes on the next frame on some platforms,
@@ -67,6 +94,19 @@ func _fitted_window_size() -> Vector2i:
 	var fit := minf(1.0, minf(max_size.x / resolution.x, max_size.y / resolution.y))
 	return Vector2i((Vector2(resolution) * fit).floor())
 
+## The RESOLUTIONS that fit on the current screen as a window, with
+## room for the title bar and taskbar. Always has at least one entry.
+func available_resolutions() -> Array[Vector2i]:
+	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var room := Vector2(usable.size) * 0.95
+	var fitting: Array[Vector2i] = []
+	for res in RESOLUTIONS:
+		if res.x <= room.x and res.y <= room.y:
+			fitting.append(res)
+	if fitting.is_empty():
+		fitting.append(RESOLUTIONS[0])
+	return fitting
+
 func _center_window() -> void:
 	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	var win_size := DisplayServer.window_get_size()
@@ -77,14 +117,14 @@ func set_master_volume(v: float) -> void:
 	apply_volume()
 	save_settings()
 
-func set_fullscreen(enabled: bool) -> void:
-	fullscreen = enabled
+func set_display_mode(mode: int) -> void:
+	display_mode = mode
 	apply_window_mode()
 	save_settings()
 
 func set_resolution(res: Vector2i) -> void:
 	resolution = res
-	if not fullscreen:
+	if not is_fullscreen():
 		apply_window_mode()
 	save_settings()
 
@@ -162,7 +202,7 @@ func _layout_keycode(ev: InputEventKey) -> Key:
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "master_volume", master_volume)
-	cfg.set_value("display", "fullscreen", fullscreen)
+	cfg.set_value("display", "mode", display_mode)
 	cfg.set_value("display", "resolution_x", resolution.x)
 	cfg.set_value("display", "resolution_y", resolution.y)
 	for action in REBINDABLE_ACTIONS:
@@ -178,10 +218,19 @@ func load_settings() -> void:
 	if err != OK:
 		return
 	master_volume = cfg.get_value("audio", "master_volume", master_volume)
-	fullscreen = cfg.get_value("display", "fullscreen", fullscreen)
+	# Older saves only had a fullscreen on/off flag.
+	var was_fullscreen: bool = cfg.get_value("display", "fullscreen", false)
+	var mode: int = cfg.get_value("display", "mode",
+		DisplayMode.BORDERLESS if was_fullscreen else DisplayMode.WINDOWED)
+	display_mode = clampi(mode, 0, DisplayMode.size() - 1)
 	var rx: int = cfg.get_value("display", "resolution_x", resolution.x)
 	var ry: int = cfg.get_value("display", "resolution_y", resolution.y)
 	resolution = Vector2i(rx, ry)
+	# A saved size that no longer fits (e.g. after switching to a smaller
+	# monitor) falls back to the largest one that does.
+	var fitting := available_resolutions()
+	if not fitting.has(resolution):
+		resolution = fitting[-1]
 	for action in REBINDABLE_ACTIONS:
 		if not cfg.has_section_key("controls", action):
 			continue

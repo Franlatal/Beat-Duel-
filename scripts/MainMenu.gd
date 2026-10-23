@@ -9,7 +9,7 @@ extends Control
 @onready var back_button: Button = %BackButton
 @onready var volume_slider: HSlider = %VolumeSlider
 @onready var resolution_option: OptionButton = %ResolutionOption
-@onready var fullscreen_check: CheckBox = %FullscreenCheck
+@onready var display_mode_option: OptionButton = %DisplayModeOption
 
 const LEVEL_SELECT_SCENE := "res://scenes/LevelSelect.tscn"
 
@@ -23,13 +23,13 @@ func _ready() -> void:
 
 	volume_slider.value_changed.connect(_on_volume_changed)
 	resolution_option.item_selected.connect(_on_resolution_selected)
-	fullscreen_check.toggled.connect(_on_fullscreen_toggled)
+	display_mode_option.item_selected.connect(_on_display_mode_selected)
 
 	for b in [play_button, options_button, quit_button]:
 		b.mouse_entered.connect(_on_button_hover.bind(b))
 		b.mouse_exited.connect(_on_button_unhover.bind(b))
 
-	_populate_resolutions()
+	_populate_display_options()
 	_sync_options_ui()
 	_setup_controls_menu()
 
@@ -51,17 +51,21 @@ func _start_title_pulse() -> void:
 	tw.tween_property(title_label, "self_modulate", Color(1.25, 1.1, 1.3), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(title_label, "self_modulate", Color(1, 1, 1), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
-func _populate_resolutions() -> void:
+func _populate_display_options() -> void:
+	display_mode_option.clear()
+	for mode_name in Settings.DISPLAY_MODE_NAMES:
+		display_mode_option.add_item(mode_name)
 	resolution_option.clear()
-	for res in Settings.RESOLUTIONS:
+	for res in Settings.available_resolutions():
 		resolution_option.add_item("%d x %d" % [res.x, res.y])
 
 func _sync_options_ui() -> void:
 	volume_slider.value = Settings.master_volume * 100.0
-	fullscreen_check.button_pressed = Settings.fullscreen
-	var idx := Settings.RESOLUTIONS.find(Settings.resolution)
+	display_mode_option.selected = Settings.display_mode
+	var idx := Settings.available_resolutions().find(Settings.resolution)
 	resolution_option.selected = max(idx, 0)
-	resolution_option.disabled = Settings.fullscreen
+	# Fullscreen modes always use the monitor's own size.
+	resolution_option.disabled = Settings.is_fullscreen()
 
 ## Adds a CONTROLS button above BACK in the Options panel, and the
 ## ControlsMenu overlay it opens.
@@ -107,11 +111,11 @@ func _on_volume_changed(value: float) -> void:
 	Settings.set_master_volume(value / 100.0)
 
 func _on_resolution_selected(index: int) -> void:
-	Settings.set_resolution(Settings.RESOLUTIONS[index])
+	Settings.set_resolution(Settings.available_resolutions()[index])
 
-func _on_fullscreen_toggled(enabled: bool) -> void:
-	Settings.set_fullscreen(enabled)
-	resolution_option.disabled = enabled
+func _on_display_mode_selected(index: int) -> void:
+	Settings.set_display_mode(index)
+	resolution_option.disabled = Settings.is_fullscreen()
 
 # The pixel theme's hover box does the highlighting; on top of that the
 # button nudges a whole 6px to the right (scaling would blur pixel art).
