@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://drbtxbghdrs65" path="res://scripts/MainMenu.gd" id="1_mmscr"]
 [ext_resource type="Script" uid="uid://dtg0y0gsebp5v" path="res://scripts/EqualizerBars.gd" id="2_eqscr"]
 [ext_resource type="Shader" uid="uid://ie0wvauxbin3" path="res://shaders/background.gdshader" id="3_bgshd"]
-[ext_resource type="Theme" path="res://themes/pixel_theme.tres" id="4_theme"]
+[ext_resource type="Theme" uid="uid://dusmotmn5xki4" path="res://themes/pixel_theme.tres" id="4_theme"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_bg01"]
 shader = ExtResource("3_bgshd")

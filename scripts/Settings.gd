@@ -25,7 +25,7 @@ const REBINDABLE_ACTIONS := {
 
 var master_volume: float = 1.0 # 0.0 - 1.0
 var fullscreen: bool = false
-var resolution: Vector2i = Vector2i(1920, 1080)
+var resolution: Vector2i = Vector2i(1280, 720)
 
 ## Keyboard events each rebindable action had in project.godot, captured
 ## before any saved bindings are applied. Used by reset_controls().
@@ -48,15 +48,29 @@ func apply_volume() -> void:
 func apply_window_mode() -> void:
 	if fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	else:
+		return
+	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-		DisplayServer.window_set_size(resolution)
-		_center_window()
+		# Leaving fullscreen finishes on the next frame on some platforms,
+		# and a size set before then gets overwritten.
+		await get_tree().process_frame
+	DisplayServer.window_set_size(_fitted_window_size())
+	_center_window()
+
+## The chosen resolution, scaled down (keeping its aspect ratio) if it
+## wouldn't fit on the screen with the title bar and taskbar visible.
+## A 1920x1080 window on a 1080p monitor would otherwise cover the whole
+## screen and look like fullscreen.
+func _fitted_window_size() -> Vector2i:
+	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var max_size := Vector2(usable.size) * 0.9
+	var fit := minf(1.0, minf(max_size.x / resolution.x, max_size.y / resolution.y))
+	return Vector2i((Vector2(resolution) * fit).floor())
 
 func _center_window() -> void:
-	var screen_size := DisplayServer.screen_get_size()
+	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	var win_size := DisplayServer.window_get_size()
-	DisplayServer.window_set_position((screen_size - win_size) / 2)
+	DisplayServer.window_set_position(usable.position + (usable.size - win_size) / 2)
 
 func set_master_volume(v: float) -> void:
 	master_volume = clamp(v, 0.0, 1.0)
