@@ -100,9 +100,9 @@ var wait_elapsed: float = 0.0
 var audio_started: bool = false
 
 # --- segment display (debug) ---------------------------------------------
-var segments: Array = []
-var segment_label: Label
-var current_segment_index: int = -1
+#var segments: Array = []
+#var segment_label: Label
+#var current_segment_index: int = -1
 
 # --- floating feedback labels ---------------------------------------------
 var _feedback_nodes: Array[Node] = []
@@ -123,10 +123,10 @@ func _ready() -> void:
 		push_error("Chart failed to parse — check chart_path/track_name.")
 		return
 	upcoming_notes = chart_data.notes.duplicate()
-	segments = chart_data.segments
+	#segments = chart_data.segments
 	start_delay = max(0.0, -chart_data.get("offset", 0.0))
 
-	_setup_segment_label()
+	#_setup_segment_label()
 
 	audio_player = AudioStreamPlayer.new()
 	audio_player.stream = load(audio_path)
@@ -215,7 +215,7 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 		spawned_notes.erase(note)
 		note.queue_free()
 
-	_update_segment_label(song_time)
+	#_update_segment_label(song_time)
 
 # --- drawing --------------------------------------------------------------
 
@@ -435,32 +435,32 @@ func _update_feedback_labels(delta: float) -> void:
 
 # --- segment display (debug) ---------------------------------------------
 
-func _setup_segment_label() -> void:
-	var layer := CanvasLayer.new()
-	add_child(layer)
-	segment_label = Label.new()
-	segment_label.add_theme_font_size_override("font_size", 32)
-	segment_label.position = Vector2(20, 20)
-	segment_label.text = ""
-	layer.add_child(segment_label)
+#func _setup_segment_label() -> void:
+	#var layer := CanvasLayer.new()
+	#add_child(layer)
+	#segment_label = Label.new()
+	#segment_label.add_theme_font_size_override("font_size", 32)
+	#segment_label.position = Vector2(20, 20)
+	#segment_label.text = ""
+	#layer.add_child(segment_label)
 
-func _update_segment_label(song_time: float) -> void:
-	var active := -1
-	for seg in segments:
-		if seg.time <= song_time:
-			active = seg.index
-		else:
-			break
-	if active != current_segment_index:
-		current_segment_index = active
-		segment_label.text = "Segment %d" % active if active != -1 else ""
-		_on_segment_changed(active)
+#func _update_segment_label(song_time: float) -> void:
+	#var active := -1
+	#for seg in segments:
+		#if seg.time <= song_time:
+			#active = seg.index
+		#else:
+			#break
+	#if active != current_segment_index:
+		#current_segment_index = active
+		#segment_label.text = "Segment %d" % active if active != -1 else ""
+		#_on_segment_changed(active)
 
 ## Override in a subclass (see LevelBase.gd) for level-specific behavior
 ## when the active chart segment changes. index is -1 before the first
 ## segment starts.
-func _on_segment_changed(index: int) -> void:
-	pass
+#func _on_segment_changed(index: int) -> void:
+	#pass
 
 # --- helpers --------------------------------------------------------------
 
