@@ -1,0 +1,315 @@
+[gd_scene format=3 uid="uid://dkulkf830k441"]
+
+[ext_resource type="Script" uid="uid://b5h8wg68nkotd" path="res://scripts/LevelBase.gd" id="1_lvlbase"]
+[ext_resource type="Shader" uid="uid://ie0wvauxbin3" path="res://shaders/background.gdshader" id="2_bgshd"]
+[ext_resource type="Script" uid="uid://dtg0y0gsebp5v" path="res://scripts/EqualizerBars.gd" id="3_eqscr"]
+[ext_resource type="Theme" uid="uid://dusmotmn5xki4" path="res://themes/pixel_theme.tres" id="4_theme"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_bg"]
+shader = ExtResource("2_bgshd")
+shader_parameter/color_top = Color(0.051, 0.027, 0.129, 1)
+shader_parameter/color_bottom = Color(0.165, 0.055, 0.239, 1)
+shader_parameter/accent_color = Color(0.902, 0.133, 0.475, 1)
+shader_parameter/speed = 0.35
+shader_parameter/pixel_size = 6.0
+shader_parameter/color_steps = 12.0
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_boss"]
+animations = [{
+"frames": [],
+"loop": false,
+"name": &"attack",
+"speed": 8.0
+}, {
+"frames": [],
+"loop": false,
+"name": &"hit",
+"speed": 8.0
+}, {
+"frames": [],
+"loop": true,
+"name": &"idle",
+"speed": 6.0
+}]
+
+[node name="BaseLevel" type="Node2D"]
+script = ExtResource("1_lvlbase")
+lane_positions = [350.0, 490.0, 630.0, 770.0]
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="."]
+layer = -10
+
+[node name="Background" type="ColorRect" parent="BackgroundLayer"]
+material = SubResource("ShaderMaterial_bg")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="EqualizerBars" type="Control" parent="BackgroundLayer"]
+modulate = Color(1, 1, 1, 0.35)
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -140.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("3_eqscr")
+
+[node name="BossAnchor" type="Node2D" parent="."]
+position = Vector2(1420, 560)
+
+[node name="BossNameLabel" type="Label" parent="BossAnchor"]
+texture_filter = 1
+offset_left = -240.0
+offset_top = -240.0
+offset_right = 240.0
+offset_bottom = -196.0
+theme = ExtResource("4_theme")
+theme_type_variation = &"HeaderLabel"
+text = "BOSS"
+horizontal_alignment = 1
+
+[node name="BossPlaceholder" type="PanelContainer" parent="BossAnchor"]
+texture_filter = 1
+offset_left = -190.0
+offset_top = -180.0
+offset_right = 190.0
+offset_bottom = 180.0
+theme = ExtResource("4_theme")
+
+[node name="VBox" type="VBoxContainer" parent="BossAnchor/BossPlaceholder"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Title" type="Label" parent="BossAnchor/BossPlaceholder/VBox"]
+layout_mode = 2
+theme_type_variation = &"CardTitleLabel"
+text = "[ BOSS SPRITE ]"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="BossAnchor/BossPlaceholder/VBox"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "Add frames to BossSprite
+(idle / hit / attack)"
+horizontal_alignment = 1
+
+[node name="BossSprite" type="AnimatedSprite2D" parent="BossAnchor"]
+texture_filter = 1
+sprite_frames = SubResource("SpriteFrames_boss")
+animation = &"idle"
+
+[node name="SFX" type="Node" parent="."]
+
+[node name="HitSFX" type="AudioStreamPlayer" parent="SFX"]
+
+[node name="MissSFX" type="AudioStreamPlayer" parent="SFX"]
+
+[node name="CountdownSFX" type="AudioStreamPlayer" parent="SFX"]
+
+[node name="SegmentPassSFX" type="AudioStreamPlayer" parent="SFX"]
+
+[node name="SegmentFailSFX" type="AudioStreamPlayer" parent="SFX"]
+
+[node name="HUDLayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="HUDRoot" type="Control" parent="HUDLayer"]
+texture_filter = 1
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("4_theme")
+
+[node name="BackButton" type="Button" parent="HUDLayer/HUDRoot"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 168.0
+offset_bottom = 78.0
+text = "BACK"
+
+[node name="TopHUD" type="HBoxContainer" parent="HUDLayer/HUDRoot"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -996.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 114.0
+grow_horizontal = 0
+theme_override_constants/separation = 16
+
+[node name="HPPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD"]
+custom_minimum_size = Vector2(210, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/HPPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="HPTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/HPPanel/VBox"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "PLAYER HP"
+
+[node name="HeartsContainer" type="HBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/HPPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ScorePanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HBox" type="HBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel"]
+layout_mode = 2
+theme_override_constants/separation = 28
+
+[node name="ScoreCol" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ScoreTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ScoreCol"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "SCORE"
+
+[node name="ScoreValueLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ScoreCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CardTitleLabel"
+text = "000000"
+
+[node name="ComboCol" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ComboTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ComboCol"]
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "COMBO"
+
+[node name="ComboValueLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ComboCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CardTitleLabel"
+text = "0x  [1x]"
+
+[node name="SegmentPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD"]
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="SegmentTitleLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"MutedLabel"
+text = "SEGMENT 1"
+
+[node name="SegmentScoreLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CardTitleLabel"
+text = "0% / 70%"
+
+[node name="StatusBanner" type="Label" parent="HUDLayer/HUDRoot"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -996.0
+offset_top = 132.0
+offset_right = -24.0
+offset_bottom = 176.0
+grow_horizontal = 0
+theme_type_variation = &"HeaderLabel"
+text = ""
+horizontal_alignment = 1
+
+[node name="CenterOverlay" type="CenterContainer" parent="HUDLayer/HUDRoot"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="CountdownLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 72
+text = "3"
+horizontal_alignment = 1
+
+[node name="ResultPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/CenterOverlay"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(540, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="ResultTitleLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderLabel"
+text = "VICTORY!"
+horizontal_alignment = 1
+
+[node name="ResultStatsLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "SCORE: 0"
+horizontal_alignment = 1
+
+[node name="Buttons" type="HBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="RetryButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 52)
+layout_mode = 2
+text = "RETRY"
+
+[node name="MenuButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 52)
+layout_mode = 2
+text = "LEVELS"
+

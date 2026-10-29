@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="LevelData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="LevelData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/LevelData.gd" id="1_leveldata"]
 [ext_resource type="Script" path="res://scripts/DifficultyOption.gd" id="2_diffopt"]
@@ -16,12 +16,18 @@ label = "Normal"
 track_name = "MediumSingle"
 lane_count = 3
 
+[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_tut_hard"]
+script = ExtResource("2_diffopt")
+label = "Hard"
+track_name = "ExpertSingle"
+lane_count = 4
+
 [resource]
 script = ExtResource("1_leveldata")
 id = &"tutorial"
 title = "Tutorial"
 artist = ""
-difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_tut_easy"), SubResource("DifficultyOption_tut_normal")])
+difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_tut_easy"), SubResource("DifficultyOption_tut_normal"), SubResource("DifficultyOption_tut_hard")])
 default_difficulty_index = 0
 bpm = 100.0
 description = "Learn the lanes and the timing window."

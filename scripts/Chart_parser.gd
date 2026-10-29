@@ -88,17 +88,22 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 				var raw_end := _tick_to_seconds(ev.tick + sustain_ticks, resolution, tempo_events)
 				notes.append({"time": raw_time + offset, "lane": lane, "sustain": raw_end - raw_time})
 			elif ev.type == "E" and not ev.args.is_empty():
-				# In-track text events, e.g. "1536 = E segment1", used here to
-				# mark the start of each of the song's 3 gameplay segments.
-				var label: String = String(ev.args[0]).to_lower()
-				if label.begins_with("segment"):
-					var num_str := label.substr("segment".length())
-					if num_str.is_valid_int():
-						segments.append({
-							"tick": ev.tick,
-							"index": int(num_str),
-							"time": _tick_to_seconds(ev.tick, resolution, tempo_events) + offset,
-						})
+				_try_parse_segment_event(ev, resolution, tempo_events, offset, segments)
+
+	# Fallback: if the chosen difficulty track didn't repeat the "E segmentN"
+	# markers, read them from [Events] or another difficulty section so
+	# charters only need to place segment markers once per song.
+	if segments.is_empty():
+		for fallback_sec in ["Events", "ExpertSingle", "HardSingle", "MediumSingle", "EasySingle"]:
+			if fallback_sec == track_name or not sections.has(fallback_sec):
+				continue
+			for line in sections[fallback_sec]:
+				var ev := _parse_event_line(line)
+				if not ev.is_empty() and ev.type == "E" and not ev.args.is_empty():
+					_try_parse_segment_event(ev, resolution, tempo_events, offset, segments)
+			if not segments.is_empty():
+				break
+
 	notes.sort_custom(func(a, b): return a.time < b.time)
 	segments.sort_custom(func(a, b): return a.time < b.time)
 
@@ -111,6 +116,18 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 	}
 
 # --- internal helpers -------------------------------------------------
+
+func _try_parse_segment_event(ev: Dictionary, resolution: int, tempo_events: Array, offset: float, segments: Array) -> void:
+	# Strip quotes in case a section event in [Events] is formatted like: E "segment1"
+	var label: String = String(ev.args[0]).lstrip("\"").rstrip("\"").to_lower()
+	if label.begins_with("segment"):
+		var num_str := label.substr("segment".length())
+		if num_str.is_valid_int():
+			segments.append({
+				"tick": ev.tick,
+				"index": int(num_str),
+				"time": _tick_to_seconds(ev.tick, resolution, tempo_events) + offset,
+			})
 
 func _split_sections(lines: Array) -> Dictionary:
 	var sections := {}

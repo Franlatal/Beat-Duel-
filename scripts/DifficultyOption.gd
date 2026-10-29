@@ -14,6 +14,10 @@ extends Resource
 ## this matches it exactly.
 @export var track_name: String = "MediumSingle"
 
+## Optional override: if set, this difficulty loads its own dedicated
+## .chart file instead of using the level's default chart_path.
+@export_file("*.chart") var chart_path: String = ""
+
 ## How many lane columns this difficulty uses. Lower difficulties can
 ## use fewer lanes than higher ones -- each is its own track section in
 ## the same chart file, so there's no filtering to do here, just layout.

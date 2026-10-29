@@ -1,9 +1,11 @@
-[gd_scene format=3 uid="uid://dnb8bsg4krqck"]
+[gd_scene load_steps=3 format=3 uid="uid://dnb8bsg4krqck"]
 
-[ext_resource type="Script" uid="uid://82040xrhctow" path="res://scripts/levels/Level1.gd" id="1_l1scr"]
+[ext_resource type="PackedScene" uid="uid://cbaselevel0001" path="res://scenes/levels/BaseLevel.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://82040xrhctow" path="res://scripts/levels/Level1.gd" id="2_l1scr"]
 
-[node name="Level1" type="Node2D" unique_id=1705955207]
-script = ExtResource("1_l1scr")
+[node name="Level1" instance=ExtResource("1_base")]
+script = ExtResource("2_l1scr")
+boss_name = "FLOWER MAN"
 chart_path = "res://music/Chart/FlowerManNew.chart"
 audio_path = "res://music/Ogg/song.ogg"
 lane_positions = [350.0, 490.0, 630.0, 770.0]

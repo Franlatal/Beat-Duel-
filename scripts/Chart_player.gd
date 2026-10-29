@@ -27,6 +27,10 @@ extends Node2D
 ## Emitted for every judgement: "Perfect", "Good", "Miss" (taps and
 ## hold heads), plus "Held" / "Dropped" when a hold note's tail ends.
 signal note_judged(result: String, lane_index: int)
+## Emitted when song playback crosses into a new chart segment ("E segmentN").
+signal segment_changed(segment_index: int)
+## Emitted once the audio track finishes playing.
+signal song_finished()
 
 @export var chart_path: String = "res://music/Chart/FlowerManNew.chart"
 @export var audio_path: String = "res://music/Ogg/song.ogg"
@@ -37,9 +41,15 @@ signal note_judged(result: String, lane_index: int)
 @export var note_lead_time: float = 2.0   # seconds a note is visible before its hit time
 ## Notes with a sustain shorter than this (seconds) are treated as taps.
 @export var min_hold_duration: float = 0.15
+## If false, chart and lanes are set up in _ready(), but time/audio waits
+## until start_playback() is called (used by LevelBase for the 3-2-1 countdown).
+@export var autostart: bool = true
 
 # --- lane visuals ---------------------------------------------------------
 const LANE_WIDTH: float = 80.0            # width of each lane stripe
+## Distance above the top edge of the screen (y = 0) where notes spawn
+## so they start off-screen and slide smoothly into view.
+const SPAWN_OFFSCREEN_MARGIN: float = 80.0
 const NOTE_TEXTURES: Array[String] = [
 	"res://Sprites/note1.png",
 	"res://Sprites/note2.png",
@@ -98,11 +108,12 @@ var _song_time: float = 0.0
 var start_delay: float = 0.0
 var wait_elapsed: float = 0.0
 var audio_started: bool = false
+var playback_active: bool = false
+var _song_ended: bool = false
 
-# --- segment display (debug) ---------------------------------------------
-#var segments: Array = []
-#var segment_label: Label
-#var current_segment_index: int = -1
+# --- segment tracking -----------------------------------------------------
+var segments: Array = []
+var current_segment_index: int = -1
 
 # --- floating feedback labels ---------------------------------------------
 var _feedback_nodes: Array[Node] = []
@@ -123,21 +134,40 @@ func _ready() -> void:
 		push_error("Chart failed to parse — check chart_path/track_name.")
 		return
 	upcoming_notes = chart_data.notes.duplicate()
-	#segments = chart_data.segments
+	segments = chart_data.get("segments", []).duplicate()
+	var lead_time := _spawn_lead_time()
 	start_delay = max(0.0, -chart_data.get("offset", 0.0))
-
-	#_setup_segment_label()
+	if not upcoming_notes.is_empty():
+		var first_note_time: float = upcoming_notes[0].time
+		start_delay = max(start_delay, lead_time - first_note_time)
 
 	audio_player = AudioStreamPlayer.new()
 	audio_player.stream = load(audio_path)
 	add_child(audio_player)
 
+	if autostart:
+		start_playback()
+
+func start_playback() -> void:
+	if chart_data.is_empty() or playback_active:
+		return
+	playback_active = true
 	if start_delay <= 0.0:
 		audio_player.play()
 		audio_started = true
 
+func stop_playback() -> void:
+	playback_active = false
+	if audio_player != null and audio_player.playing:
+		audio_player.stop()
+
 func _process(delta: float) -> void:
 	if chart_data.is_empty():
+		return
+
+	if not playback_active:
+		_update_feedback_labels(delta)
+		queue_redraw()
 		return
 
 	var song_time: float
@@ -150,6 +180,9 @@ func _process(delta: float) -> void:
 			audio_started = true
 	else:
 		if not audio_player.playing:
+			if not _song_ended:
+				_song_ended = true
+				song_finished.emit()
 			return
 		song_time = _get_song_time()
 
@@ -167,9 +200,10 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _update_gameplay(song_time: float, delta: float) -> void:
-	# Spawn notes that are about to enter the visible area
-	while not upcoming_notes.is_empty() and upcoming_notes[0].time - note_lead_time <= song_time:
-		_spawn_note(upcoming_notes.pop_front())
+	var lead_time := _spawn_lead_time()
+	# Spawn notes above the top edge of the screen so they slide smoothly into view
+	while not upcoming_notes.is_empty() and upcoming_notes[0].time - lead_time <= song_time:
+		_spawn_note(upcoming_notes.pop_front(), song_time)
 
 	# Move spawned notes, resolve holds and remove missed ones
 	var viewport_h: float = get_viewport().get_visible_rect().size.y
@@ -215,7 +249,7 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 		spawned_notes.erase(note)
 		note.queue_free()
 
-	#_update_segment_label(song_time)
+	_update_segments(song_time)
 
 # --- drawing --------------------------------------------------------------
 
@@ -309,7 +343,7 @@ func _draw_hold_tails() -> void:
 # --- input ----------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if chart_data.is_empty():
+	if chart_data.is_empty() or not playback_active:
 		return
 	for i in range(lane_positions.size()):
 		if event.is_action_pressed(_action_for_lane(i)):
@@ -433,36 +467,32 @@ func _update_feedback_labels(delta: float) -> void:
 		_feedback_nodes.erase(label)
 		label.queue_free()
 
-# --- segment display (debug) ---------------------------------------------
+# --- segment tracking -----------------------------------------------------
 
-#func _setup_segment_label() -> void:
-	#var layer := CanvasLayer.new()
-	#add_child(layer)
-	#segment_label = Label.new()
-	#segment_label.add_theme_font_size_override("font_size", 32)
-	#segment_label.position = Vector2(20, 20)
-	#segment_label.text = ""
-	#layer.add_child(segment_label)
-
-#func _update_segment_label(song_time: float) -> void:
-	#var active := -1
-	#for seg in segments:
-		#if seg.time <= song_time:
-			#active = seg.index
-		#else:
-			#break
-	#if active != current_segment_index:
-		#current_segment_index = active
-		#segment_label.text = "Segment %d" % active if active != -1 else ""
-		#_on_segment_changed(active)
+func _update_segments(song_time: float) -> void:
+	var active := -1
+	for seg in segments:
+		if seg.time <= song_time:
+			active = seg.index
+		else:
+			break
+	if active != current_segment_index:
+		current_segment_index = active
+		_on_segment_changed(active)
+		segment_changed.emit(active)
 
 ## Override in a subclass (see LevelBase.gd) for level-specific behavior
 ## when the active chart segment changes. index is -1 before the first
 ## segment starts.
-#func _on_segment_changed(index: int) -> void:
-	#pass
+func _on_segment_changed(index: int) -> void:
+	pass
 
 # --- helpers --------------------------------------------------------------
+
+## Time (seconds) it takes a note to travel from off-screen above the top edge
+## (y = -SPAWN_OFFSCREEN_MARGIN) down to hit_line_y at the current scroll_speed.
+func _spawn_lead_time() -> float:
+	return maxf(note_lead_time, (hit_line_y + SPAWN_OFFSCREEN_MARGIN) / maxf(scroll_speed, 1.0))
 
 ## Screen y of a note scheduled at time t, given the current song time.
 func _time_to_y(t: float, song_time: float) -> float:
@@ -480,7 +510,7 @@ func _current_song_time() -> float:
 		return wait_elapsed - start_delay
 	return _get_song_time()
 
-func _spawn_note(note_data: Dictionary) -> void:
+func _spawn_note(note_data: Dictionary, current_time: float = -INF) -> void:
 	if note_data.lane < 0 or note_data.lane >= lane_positions.size():
 		return  # skip notes for lanes that don't exist at this difficulty
 
@@ -493,7 +523,8 @@ func _spawn_note(note_data: Dictionary) -> void:
 		var desired_width: float = LANE_WIDTH * 0.7
 		var scale_factor: float = desired_width / max(tex_size.x, 1.0)
 		note.scale = Vector2(scale_factor, scale_factor)
-	note.position.x = lane_positions[note_data.lane]
+	var initial_y := _time_to_y(note_data.time, current_time) if is_finite(current_time) else -SPAWN_OFFSCREEN_MARGIN
+	note.position = Vector2(lane_positions[note_data.lane], initial_y)
 	note.set_meta("hit_time", note_data.time)
 	note.set_meta("lane_index", note_data.lane)
 	var sustain: float = note_data.get("sustain", 0.0)
