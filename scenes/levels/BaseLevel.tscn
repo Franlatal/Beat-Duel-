@@ -4,6 +4,7 @@
 [ext_resource type="Shader" uid="uid://ie0wvauxbin3" path="res://shaders/background.gdshader" id="2_bgshd"]
 [ext_resource type="Script" uid="uid://dtg0y0gsebp5v" path="res://scripts/EqualizerBars.gd" id="3_eqscr"]
 [ext_resource type="Theme" uid="uid://dusmotmn5xki4" path="res://themes/pixel_theme.tres" id="4_theme"]
+[ext_resource type="Script" uid="uid://ospymfxdtqku" path="res://scripts/LyricsDisplay.gd" id="5_lyrics"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_bg"]
 shader = ExtResource("2_bgshd")
@@ -17,29 +18,29 @@ shader_parameter/color_steps = 12.0
 [sub_resource type="SpriteFrames" id="SpriteFrames_boss"]
 animations = [{
 "frames": [],
-"loop": false,
+"loop": 0,
 "name": &"attack",
 "speed": 8.0
 }, {
 "frames": [],
-"loop": false,
+"loop": 0,
 "name": &"hit",
 "speed": 8.0
 }, {
 "frames": [],
-"loop": true,
+"loop": 1,
 "name": &"idle",
 "speed": 6.0
 }]
 
-[node name="BaseLevel" type="Node2D"]
+[node name="BaseLevel" type="Node2D" unique_id=1021786383]
 script = ExtResource("1_lvlbase")
 lane_positions = [350.0, 490.0, 630.0, 770.0]
 
-[node name="BackgroundLayer" type="CanvasLayer" parent="."]
+[node name="BackgroundLayer" type="CanvasLayer" parent="." unique_id=562744043]
 layer = -10
 
-[node name="Background" type="ColorRect" parent="BackgroundLayer"]
+[node name="Background" type="ColorRect" parent="BackgroundLayer" unique_id=793929631]
 material = SubResource("ShaderMaterial_bg")
 anchors_preset = 15
 anchor_right = 1.0
@@ -48,8 +49,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="EqualizerBars" type="Control" parent="BackgroundLayer"]
+[node name="EqualizerBars" type="Control" parent="BackgroundLayer" unique_id=1706508604]
 modulate = Color(1, 1, 1, 0.35)
+layout_mode = 3
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
@@ -60,10 +62,10 @@ grow_vertical = 0
 mouse_filter = 2
 script = ExtResource("3_eqscr")
 
-[node name="BossAnchor" type="Node2D" parent="."]
+[node name="BossAnchor" type="Node2D" parent="." unique_id=968578802]
 position = Vector2(1420, 560)
 
-[node name="BossNameLabel" type="Label" parent="BossAnchor"]
+[node name="BossNameLabel" type="Label" parent="BossAnchor" unique_id=1391668762]
 texture_filter = 1
 offset_left = -240.0
 offset_top = -240.0
@@ -74,7 +76,7 @@ theme_type_variation = &"HeaderLabel"
 text = "BOSS"
 horizontal_alignment = 1
 
-[node name="BossPlaceholder" type="PanelContainer" parent="BossAnchor"]
+[node name="BossPlaceholder" type="PanelContainer" parent="BossAnchor" unique_id=1653809220]
 texture_filter = 1
 offset_left = -190.0
 offset_top = -180.0
@@ -82,45 +84,45 @@ offset_right = 190.0
 offset_bottom = 180.0
 theme = ExtResource("4_theme")
 
-[node name="VBox" type="VBoxContainer" parent="BossAnchor/BossPlaceholder"]
+[node name="VBox" type="VBoxContainer" parent="BossAnchor/BossPlaceholder" unique_id=1568771003]
 layout_mode = 2
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="Title" type="Label" parent="BossAnchor/BossPlaceholder/VBox"]
+[node name="Title" type="Label" parent="BossAnchor/BossPlaceholder/VBox" unique_id=1019875089]
 layout_mode = 2
 theme_type_variation = &"CardTitleLabel"
 text = "[ BOSS SPRITE ]"
 horizontal_alignment = 1
 
-[node name="Hint" type="Label" parent="BossAnchor/BossPlaceholder/VBox"]
+[node name="Hint" type="Label" parent="BossAnchor/BossPlaceholder/VBox" unique_id=945240829]
 layout_mode = 2
 theme_type_variation = &"SubtitleLabel"
 text = "Add frames to BossSprite
 (idle / hit / attack)"
 horizontal_alignment = 1
 
-[node name="BossSprite" type="AnimatedSprite2D" parent="BossAnchor"]
+[node name="BossSprite" type="AnimatedSprite2D" parent="BossAnchor" unique_id=572626156]
 texture_filter = 1
 sprite_frames = SubResource("SpriteFrames_boss")
 animation = &"idle"
 
-[node name="SFX" type="Node" parent="."]
+[node name="SFX" type="Node" parent="." unique_id=1934472813]
 
-[node name="HitSFX" type="AudioStreamPlayer" parent="SFX"]
+[node name="HitSFX" type="AudioStreamPlayer" parent="SFX" unique_id=1068715650]
 
-[node name="MissSFX" type="AudioStreamPlayer" parent="SFX"]
+[node name="MissSFX" type="AudioStreamPlayer" parent="SFX" unique_id=1622209978]
 
-[node name="CountdownSFX" type="AudioStreamPlayer" parent="SFX"]
+[node name="CountdownSFX" type="AudioStreamPlayer" parent="SFX" unique_id=215788268]
 
-[node name="SegmentPassSFX" type="AudioStreamPlayer" parent="SFX"]
+[node name="SegmentPassSFX" type="AudioStreamPlayer" parent="SFX" unique_id=119104452]
 
-[node name="SegmentFailSFX" type="AudioStreamPlayer" parent="SFX"]
+[node name="SegmentFailSFX" type="AudioStreamPlayer" parent="SFX" unique_id=1690218245]
 
-[node name="HUDLayer" type="CanvasLayer" parent="."]
+[node name="HUDLayer" type="CanvasLayer" parent="." unique_id=1362981030]
 layer = 10
 
-[node name="HUDRoot" type="Control" parent="HUDLayer"]
+[node name="HUDRoot" type="Control" parent="HUDLayer" unique_id=1918864785]
 texture_filter = 1
 layout_mode = 3
 anchors_preset = 15
@@ -131,7 +133,7 @@ grow_vertical = 2
 mouse_filter = 2
 theme = ExtResource("4_theme")
 
-[node name="BackButton" type="Button" parent="HUDLayer/HUDRoot"]
+[node name="BackButton" type="Button" parent="HUDLayer/HUDRoot" unique_id=1307740294]
 unique_name_in_owner = true
 layout_mode = 0
 offset_left = 24.0
@@ -140,7 +142,7 @@ offset_right = 168.0
 offset_bottom = 78.0
 text = "BACK"
 
-[node name="TopHUD" type="HBoxContainer" parent="HUDLayer/HUDRoot"]
+[node name="TopHUD" type="HBoxContainer" parent="HUDLayer/HUDRoot" unique_id=519249523]
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
@@ -152,89 +154,89 @@ offset_bottom = 114.0
 grow_horizontal = 0
 theme_override_constants/separation = 16
 
-[node name="HPPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD"]
+[node name="HPPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD" unique_id=343948286]
 custom_minimum_size = Vector2(210, 0)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/HPPanel"]
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/HPPanel" unique_id=596134934]
 layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="HPTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/HPPanel/VBox"]
+[node name="HPTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/HPPanel/VBox" unique_id=1927839608]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "PLAYER HP"
 
-[node name="HeartsContainer" type="HBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/HPPanel/VBox"]
+[node name="HeartsContainer" type="HBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/HPPanel/VBox" unique_id=1573708193]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="ScorePanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD"]
+[node name="ScorePanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD" unique_id=1137122025]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HBox" type="HBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel"]
+[node name="HBox" type="HBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel" unique_id=1564805965]
 layout_mode = 2
 theme_override_constants/separation = 28
 
-[node name="ScoreCol" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox"]
+[node name="ScoreCol" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox" unique_id=1919928733]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="ScoreTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ScoreCol"]
+[node name="ScoreTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ScoreCol" unique_id=1330906874]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "SCORE"
 
-[node name="ScoreValueLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ScoreCol"]
+[node name="ScoreValueLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ScoreCol" unique_id=1627838227]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CardTitleLabel"
 text = "000000"
 
-[node name="ComboCol" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox"]
+[node name="ComboCol" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox" unique_id=436188098]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="ComboTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ComboCol"]
+[node name="ComboTitle" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ComboCol" unique_id=715622559]
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "COMBO"
 
-[node name="ComboValueLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ComboCol"]
+[node name="ComboValueLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/ScorePanel/HBox/ComboCol" unique_id=1759752291]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CardTitleLabel"
 text = "0x  [1x]"
 
-[node name="SegmentPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD"]
+[node name="SegmentPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/TopHUD" unique_id=680983947]
 custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel"]
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel" unique_id=717617608]
 layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="SegmentTitleLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel/VBox"]
+[node name="SegmentTitleLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel/VBox" unique_id=2025017923]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"MutedLabel"
 text = "SEGMENT 1"
 
-[node name="SegmentScoreLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel/VBox"]
+[node name="SegmentScoreLabel" type="Label" parent="HUDLayer/HUDRoot/TopHUD/SegmentPanel/VBox" unique_id=320061452]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CardTitleLabel"
 text = "0% / 70%"
 
-[node name="StatusBanner" type="Label" parent="HUDLayer/HUDRoot"]
+[node name="StatusBanner" type="Label" parent="HUDLayer/HUDRoot" unique_id=235357752]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 1
@@ -246,10 +248,20 @@ offset_right = -24.0
 offset_bottom = 176.0
 grow_horizontal = 0
 theme_type_variation = &"HeaderLabel"
-text = ""
 horizontal_alignment = 1
 
-[node name="CenterOverlay" type="CenterContainer" parent="HUDLayer/HUDRoot"]
+[node name="LyricsDisplay" type="Control" parent="HUDLayer/HUDRoot" unique_id=1659648417]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 186.0
+offset_bottom = 300.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("5_lyrics")
+
+[node name="CenterOverlay" type="CenterContainer" parent="HUDLayer/HUDRoot" unique_id=1664158567]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -258,7 +270,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="CountdownLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay"]
+[node name="CountdownLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay" unique_id=1899915248]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
@@ -266,50 +278,49 @@ theme_override_font_sizes/font_size = 72
 text = "3"
 horizontal_alignment = 1
 
-[node name="ResultPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/CenterOverlay"]
+[node name="ResultPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/CenterOverlay" unique_id=402391819]
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(540, 0)
 layout_mode = 2
 
-[node name="Margin" type="MarginContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel"]
+[node name="Margin" type="MarginContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel" unique_id=719189717]
 layout_mode = 2
 theme_override_constants/margin_left = 28
 theme_override_constants/margin_top = 24
 theme_override_constants/margin_right = 28
 theme_override_constants/margin_bottom = 24
 
-[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin" unique_id=1208204391]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="ResultTitleLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
+[node name="ResultTitleLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox" unique_id=778417023]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"HeaderLabel"
 text = "VICTORY!"
 horizontal_alignment = 1
 
-[node name="ResultStatsLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
+[node name="ResultStatsLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox" unique_id=934870096]
 unique_name_in_owner = true
 layout_mode = 2
 text = "SCORE: 0"
 horizontal_alignment = 1
 
-[node name="Buttons" type="HBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
+[node name="Buttons" type="HBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox" unique_id=602957593]
 layout_mode = 2
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="RetryButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons"]
+[node name="RetryButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons" unique_id=465675016]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
 text = "RETRY"
 
-[node name="MenuButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons"]
+[node name="MenuButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons" unique_id=1765705166]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
 text = "LEVELS"
-

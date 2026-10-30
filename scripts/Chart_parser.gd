@@ -17,7 +17,17 @@ extends RefCounted
 ##   "notes": Array[Dict],            # [{time (sec), lane (int), sustain (sec)}, ...] sorted by time
 ##   "segments": Array[Dict],         # [{tick, index (int), time (sec)}, ...] sorted by time,
 ##                                     # parsed from in-track "E segmentN" markers
+##   "sections": Array[Dict],         # [{name, time (sec)}, ...] from [Events] "section X"
+##   "lyrics": Array[Dict],           # sung lines, see below
 ## }
+##
+## Lyrics come from the [Events] lyric / phrase_start / phrase_end events
+## Moonscraper writes. Each entry of "lyrics" is one line to show:
+##   {start (sec), end (sec), section (String), syllables: [{time, end, text}, ...]}
+## A syllable's text already carries its trailing space when the next
+## syllable is a new word, so a line's text is just the syllables joined.
+## Charters often wrap a whole verse in a single phrase, so phrases are
+## split further into singable lines (see _starts_new_lyric_line).
 ##
 ## "Offset" is applied as time = tick_time + offset: it shifts note/segment
 ## timestamps earlier (for a negative offset) or later (for a positive one),
@@ -107,15 +117,215 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 	notes.sort_custom(func(a, b): return a.time < b.time)
 	segments.sort_custom(func(a, b): return a.time < b.time)
 
+	# Lyrics and sections are global, so they live in [Events] whatever
+	# difficulty is being played.
+	var song_sections: Array = []
+	var lyrics: Array = []
+	if sections.has("Events"):
+		song_sections = _parse_sections(sections["Events"], resolution, tempo_events, offset)
+		lyrics = _parse_lyrics(sections["Events"], resolution, tempo_events, offset)
+		for line in lyrics:
+			line["section"] = _section_at(song_sections, line.start)
+
+	# Seconds (offset applied) for each tempo change, so beat-synced visuals
+	# like the lyric pulse can find the beat without tick math.
+	for te in tempo_events:
+		te["time"] = _tick_to_seconds(te.tick, resolution, tempo_events) + offset
+
 	return {
 		"resolution": resolution,
 		"offset": offset,        # seconds, from [Song] "Offset" — already applied to the times below
-		"tempo_events": tempo_events,
+		"tempo_events": tempo_events,   # [{tick, bpm, time}, ...]
 		"notes": notes,
 		"segments": segments,   # [{tick, index, time}, ...] sorted by time
+		"sections": song_sections,
+		"lyrics": lyrics,
 	}
 
+# --- lyrics -----------------------------------------------------------
+
+## Lines longer than this many characters are split in two at their most
+## natural word break.
+const LYRIC_MAX_LINE_CHARS := 40
+## A pause this long (in beats) between words always starts a new line.
+const LYRIC_BREAK_GAP_BEATS := 4.0
+## A pause this long (in beats) starts a new line when the next word is
+## capitalized, which is how sung lines usually begin.
+const LYRIC_CAPITAL_GAP_BEATS := 2.0
+## The last syllable of a line counts as sung for at most this long.
+const LYRIC_MAX_SYLLABLE_SEC := 1.0
+## Words that are capitalized mid-line and so never start a line on their own.
+const LYRIC_ALWAYS_CAPITAL := ["I", "I'm", "I'll", "I'd", "I've"]
+
+func _parse_sections(event_lines: Array, resolution: int, tempo_events: Array, offset: float) -> Array:
+	var result: Array = []
+	for line in event_lines:
+		var ev := _parse_event_line(line)
+		if ev.is_empty() or ev.type != "E" or ev.args.is_empty():
+			continue
+		var label := _event_label(ev.args)
+		if label.begins_with("section "):
+			result.append({
+				"name": label.substr("section ".length()).strip_edges(),
+				"time": _tick_to_seconds(ev.tick, resolution, tempo_events) + offset,
+			})
+	result.sort_custom(func(a, b): return a.time < b.time)
+	return result
+
+func _section_at(song_sections: Array, time: float) -> String:
+	var found := ""
+	for sec in song_sections:
+		if sec.time <= time + 0.001:
+			found = sec.name
+		else:
+			break
+	return found
+
+func _parse_lyrics(event_lines: Array, resolution: int, tempo_events: Array, offset: float) -> Array:
+	# Collect lyric events, ordered so that at the same tick a phrase_end
+	# closes the old phrase before a phrase_start opens the next one, and
+	# both come before that tick's lyric.
+	var events: Array = []
+	for line in event_lines:
+		var ev := _parse_event_line(line)
+		if ev.is_empty() or ev.type != "E" or ev.args.is_empty():
+			continue
+		var label := _event_label(ev.args)
+		if label == "phrase_end":
+			events.append({"tick": ev.tick, "order": 0, "kind": "end"})
+		elif label == "phrase_start":
+			events.append({"tick": ev.tick, "order": 1, "kind": "start"})
+		elif label.begins_with("lyric "):
+			events.append({"tick": ev.tick, "order": 2, "kind": "lyric", "raw": label.substr("lyric ".length())})
+	events.sort_custom(func(a, b): return a.tick < b.tick or (a.tick == b.tick and a.order < b.order))
+
+	var lines: Array = []
+	var current: Array = []       # syllables of the line being built
+	var prev: Dictionary = {}     # previous syllable in the current line
+	for e in events:
+		var time := _tick_to_seconds(e.tick, resolution, tempo_events) + offset
+		if e.kind != "lyric":
+			_close_lyric_line(lines, current, time, resolution)
+			current = []
+			prev = {}
+			continue
+
+		var syl := _clean_lyric(e.raw)
+		if syl.is_empty():
+			continue   # pitch slide ("+") or a marker-only event: nothing to show
+		syl["tick"] = e.tick
+		syl["time"] = time
+		if not prev.is_empty() and _starts_new_lyric_line(prev, syl, resolution):
+			_close_lyric_line(lines, current, time, resolution)
+			current = []
+		current.append(syl)
+		prev = syl
+	_close_lyric_line(lines, current, INF, resolution)
+	return lines
+
+## Turns one raw lyric into {text, joins_next}, following the Rock Band /
+## Clone Hero conventions Moonscraper uses: a trailing "-" joins the next
+## syllable into the same word, "=" is a hyphen that stays visible, "_"
+## is a space, and "#" "^" "*" "%" "$" are pitch/style markers that are
+## never shown. Returns {} for a "+" (pitch slide on the last syllable).
+func _clean_lyric(raw: String) -> Dictionary:
+	var text := raw.strip_edges()
+	if text == "+" or text == "":
+		return {}
+	for marker in ["#", "^", "*", "%", "$", "+"]:
+		text = text.replace(marker, "")
+	var joins_next := false
+	if text.ends_with("-"):
+		joins_next = true
+		text = text.substr(0, text.length() - 1)
+	elif text.ends_with("="):
+		joins_next = true
+		text = text.substr(0, text.length() - 1) + "-"
+	text = text.replace("=", "-").replace("_", " ").replace("§", " ").strip_edges()
+	if text == "":
+		return {}
+	return {"text": text, "joins_next": joins_next}
+
+func _starts_new_lyric_line(prev: Dictionary, syl: Dictionary, resolution: int) -> bool:
+	if prev.joins_next:
+		return false   # never split a word
+	var gap_beats := float(syl.tick - prev.tick) / float(resolution)
+	if gap_beats >= LYRIC_BREAK_GAP_BEATS:
+		return true
+	return gap_beats >= LYRIC_CAPITAL_GAP_BEATS and _starts_with_capital(syl.text)
+
+func _starts_with_capital(text: String) -> bool:
+	var first_word: String = text.split(" ")[0].rstrip(",.!?;:")
+	if first_word.is_empty() or first_word in LYRIC_ALWAYS_CAPITAL:
+		return false
+	return first_word[0] != first_word[0].to_lower()
+
+## Characters a run of syllables takes on screen, spaces between words included.
+func _lyric_length(syllables: Array) -> int:
+	var length := 0
+	for i in range(syllables.size()):
+		length += String(syllables[i].text).length()
+		if i < syllables.size() - 1 and not syllables[i].joins_next:
+			length += 1
+	return length
+
+## Where to split a too-long line: the word break that looks most like
+## the end of a sung line (a long pause, a capitalized next word, halves
+## of similar length). Returns the first syllable of the second half, or
+## -1 when the line is a single word.
+func _best_lyric_split(syllables: Array, resolution: int) -> int:
+	var total := _lyric_length(syllables)
+	var best := -1
+	var best_score := -INF
+	for i in range(1, syllables.size()):
+		if syllables[i - 1].joins_next:
+			continue
+		var gap_beats := float(syllables[i].tick - syllables[i - 1].tick) / float(resolution)
+		var left := _lyric_length(syllables.slice(0, i))
+		var right := total - left - 1
+		var score := gap_beats - absf(float(left - right)) / float(LYRIC_MAX_LINE_CHARS)
+		if _starts_with_capital(syllables[i].text):
+			score += 2.0
+		if score > best_score:
+			best_score = score
+			best = i
+	return best
+
+## Finishes a line: fills in each syllable's end time and its display
+## text (with the space before the next word), then stores it.
+## next_time is when whatever follows the line happens (next line or
+## phrase_end), which caps how long the last syllable lasts.
+func _close_lyric_line(lines: Array, syllables: Array, next_time: float, resolution: int) -> void:
+	if syllables.is_empty():
+		return
+	if _lyric_length(syllables) > LYRIC_MAX_LINE_CHARS:
+		var cut := _best_lyric_split(syllables, resolution)
+		if cut > 0:
+			_close_lyric_line(lines, syllables.slice(0, cut), syllables[cut].time, resolution)
+			_close_lyric_line(lines, syllables.slice(cut), next_time, resolution)
+			return
+	var out: Array = []
+	for i in range(syllables.size()):
+		var s: Dictionary = syllables[i]
+		var is_last := i == syllables.size() - 1
+		var end_time: float = minf(next_time, s.time + LYRIC_MAX_SYLLABLE_SEC) if is_last else syllables[i + 1].time
+		var text: String = s.text
+		if not is_last and not s.joins_next:
+			text += " "
+		out.append({"time": s.time, "end": end_time, "text": text})
+	lines.append({
+		"start": out[0].time,
+		"end": out[out.size() - 1].end,
+		"section": "",
+		"syllables": out,
+	})
+
 # --- internal helpers -------------------------------------------------
+
+## Rebuilds the text of an "E" event from its space-split args, without
+## surrounding quotes (e.g. E "lyric twen-" -> lyric twen-).
+func _event_label(args) -> String:
+	return " ".join(PackedStringArray(args)).strip_edges().lstrip("\"").rstrip("\"")
 
 func _try_parse_segment_event(ev: Dictionary, resolution: int, tempo_events: Array, offset: float, segments: Array) -> void:
 	# Strip quotes in case a section event in [Events] is formatted like: E "segment1"
