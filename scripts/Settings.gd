@@ -24,10 +24,10 @@ const RESOLUTIONS: Array[Vector2i] = [
 ## Input actions the player can rebind in Options > Controls, in the
 ## order they're listed, with their on-screen names.
 const REBINDABLE_ACTIONS := {
-	&"lane_0": "Lane Left",
-	&"lane_1": "Lane Up",
-	&"lane_2": "Lane Down",
-	&"lane_3": "Lane Right",
+	&"lane_0": "Lane 1",
+	&"lane_1": "Lane 2",
+	&"lane_2": "Lane 3",
+	&"lane_3": "Lane 4",
 }
 
 var master_volume: float = 1.0 # 0.0 - 1.0
