@@ -21,6 +21,7 @@ extends ChartPlayer
 ##     _on_segment_changed(index: int)
 ##     _on_segment_evaluated(segment_index: int, passed: bool)
 ##     _on_boss_damaged() / _on_player_damaged()
+## - damage_player(amount) for level mechanics that cost lives.
 
 const LEVEL_SELECT_SCENE := "res://scenes/LevelSelect.tscn"
 const UI_THEME := preload("res://themes/pixel_theme.tres")
@@ -332,18 +333,26 @@ func _evaluate_segment(record_idx: int) -> void:
 		_show_status_banner("SEGMENT %d CLEARED!" % rec.index, Color(0.3, 1.0, 0.55))
 		_on_boss_damaged()
 	else:
-		hp = maxi(0, hp - 1)
 		_play_sfx(segment_fail_sfx)
 		play_boss_animation(&"attack")
 		_show_status_banner("SEGMENT %d FAILED! -1 HP" % rec.index, Color(1.0, 0.3, 0.35))
-		_on_player_damaged()
-		_refresh_hud()
-		if hp <= 0:
-			_trigger_game_over()
+		damage_player(1)
+		if is_game_over:
 			return
 
 	_on_segment_evaluated(rec.index, passed)
 	_refresh_hud()
+
+## Takes lives from the player (a failed segment, or a level's own attack
+## such as Level 1's jarona) and ends the run at 0 HP.
+func damage_player(amount: int = 1) -> void:
+	if is_game_over or is_level_complete:
+		return
+	hp = maxi(0, hp - amount)
+	_on_player_damaged()
+	_refresh_hud()
+	if hp <= 0:
+		_trigger_game_over()
 
 func _on_chart_song_finished() -> void:
 	if is_game_over or is_level_complete:

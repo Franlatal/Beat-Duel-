@@ -18,6 +18,9 @@ extends RefCounted
 ##   "segments": Array[Dict],         # [{tick, index (int), time (sec)}, ...] sorted by time,
 ##                                     # parsed from in-track "E segmentN" markers
 ##   "sections": Array[Dict],         # [{name, time (sec)}, ...] from [Events] "section X"
+##   "track_events": Array[Dict],     # [{tick, name, time (sec)}, ...] sorted by time, every
+##                                     # other in-track "E" event (e.g. "E jarona"), name lowercased;
+##                                     # what they do is up to each level script
 ##   "lyrics": Array[Dict],           # sung lines, see below
 ## }
 ##
@@ -86,6 +89,7 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 
 	var notes: Array = []
 	var segments: Array = []
+	var track_events: Array = []
 	if sections.has(track_name):
 		for line in sections[track_name]:
 			var ev := _parse_event_line(line)
@@ -98,7 +102,12 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 				var raw_end := _tick_to_seconds(ev.tick + sustain_ticks, resolution, tempo_events)
 				notes.append({"time": raw_time + offset, "lane": lane, "sustain": raw_end - raw_time})
 			elif ev.type == "E" and not ev.args.is_empty():
-				_try_parse_segment_event(ev, resolution, tempo_events, offset, segments)
+				if not _try_parse_segment_event(ev, resolution, tempo_events, offset, segments):
+					track_events.append({
+						"tick": ev.tick,
+						"name": _event_label(ev.args).to_lower(),
+						"time": _tick_to_seconds(ev.tick, resolution, tempo_events) + offset,
+					})
 
 	# Fallback: if the chosen difficulty track didn't repeat the "E segmentN"
 	# markers, read them from [Events] or another difficulty section so
@@ -116,6 +125,7 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 
 	notes.sort_custom(func(a, b): return a.time < b.time)
 	segments.sort_custom(func(a, b): return a.time < b.time)
+	track_events.sort_custom(func(a, b): return a.time < b.time)
 
 	# Lyrics and sections are global, so they live in [Events] whatever
 	# difficulty is being played.
@@ -138,6 +148,7 @@ func parse_text(text: String, track_name: String) -> Dictionary:
 		"tempo_events": tempo_events,   # [{tick, bpm, time}, ...]
 		"notes": notes,
 		"segments": segments,   # [{tick, index, time}, ...] sorted by time
+		"track_events": track_events,   # [{tick, name, time}, ...] sorted by time
 		"sections": song_sections,
 		"lyrics": lyrics,
 	}
@@ -327,7 +338,8 @@ func _close_lyric_line(lines: Array, syllables: Array, next_time: float, resolut
 func _event_label(args) -> String:
 	return " ".join(PackedStringArray(args)).strip_edges().lstrip("\"").rstrip("\"")
 
-func _try_parse_segment_event(ev: Dictionary, resolution: int, tempo_events: Array, offset: float, segments: Array) -> void:
+## Adds ev to segments if it's an "E segmentN" marker. Returns whether it was one.
+func _try_parse_segment_event(ev: Dictionary, resolution: int, tempo_events: Array, offset: float, segments: Array) -> bool:
 	# Strip quotes in case a section event in [Events] is formatted like: E "segment1"
 	var label: String = String(ev.args[0]).lstrip("\"").rstrip("\"").to_lower()
 	if label.begins_with("segment"):
@@ -338,6 +350,8 @@ func _try_parse_segment_event(ev: Dictionary, resolution: int, tempo_events: Arr
 				"index": int(num_str),
 				"time": _tick_to_seconds(ev.tick, resolution, tempo_events) + offset,
 			})
+			return true
+	return false
 
 func _split_sections(lines: Array) -> Dictionary:
 	var sections := {}
