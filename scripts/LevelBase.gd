@@ -32,17 +32,6 @@ const LANE_SPACING := 140.0
 ## left-center of the 1920x1080 screen and leave the right side for the boss.
 const LANE_LEFT_OFFSET := 400.0
 
-## Maps lane count to which input actions to use.
-## 2 lanes → Left + Right (spatially outermost keys).
-## 3 lanes → Left + Up + Right (spread across 3 keys).
-## 4 lanes → Left + Up + Down + Right (all 4 keys).
-## For > 4, they just get lane_0 … lane_N sequentially.
-const LANE_KEY_MAP := {
-	2: [0, 3],       # lane_0 (Left), lane_3 (Right)
-	3: [0, 1, 3],    # lane_0 (Left), lane_1 (Up), lane_3 (Right)
-	4: [0, 1, 2, 3], # lane_0 (Left), lane_1 (Up), lane_2 (Down), lane_3 (Right)
-}
-
 @export_group("Gameplay & HP")
 ## Starting (and maximum) discrete lives/hearts for this level.
 @export_range(1, 10, 1) var max_hp: int = 3
@@ -165,15 +154,6 @@ func _lane_positions_for(count: int) -> Array:
 	for i in range(count):
 		positions.append(start + LANE_SPACING * i)
 	return positions
-
-## Override ChartPlayer's lane -> input action mapping to spread keys for
-## 2/3 lanes. ChartPlayer uses this both for presses and for checking
-## whether a hold note's key is still held down.
-func _action_for_lane(lane_index: int) -> String:
-	var key_map: Array = LANE_KEY_MAP.get(lane_positions.size(), [])
-	if lane_index < key_map.size():
-		return "lane_%d" % key_map[lane_index]
-	return "lane_%d" % lane_index
 
 # --- countdown ------------------------------------------------------------
 
