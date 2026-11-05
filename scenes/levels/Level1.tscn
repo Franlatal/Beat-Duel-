@@ -1,11 +1,31 @@
-[gd_scene load_steps=3 format=3 uid="uid://dnb8bsg4krqck"]
+[gd_scene format=3 uid="uid://dnb8bsg4krqck"]
 
-[ext_resource type="PackedScene" uid="uid://cbaselevel0001" path="res://scenes/levels/BaseLevel.tscn" id="1_base"]
+[ext_resource type="PackedScene" uid="uid://dkulkf830k441" path="res://scenes/levels/BaseLevel.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://82040xrhctow" path="res://scripts/levels/Level1.gd" id="2_l1scr"]
+[ext_resource type="SpriteFrames" path="res://Sprites/flowery/flowery_frames.tres" id="3_flowery"]
+[ext_resource type="AudioStream" uid="uid://d1bnvi8dbekf2" path="res://sounds/jarona/jarona_1.mp3" id="4_jsfx1"]
+[ext_resource type="AudioStream" uid="uid://g4of4glwlccg" path="res://sounds/jarona/jarona_2.mp3" id="5_jsfx2"]
+[ext_resource type="AudioStream" uid="uid://c7uw8g4mksxjl" path="res://sounds/jarona/jarona_3.mp3" id="6_jsfx3"]
+[ext_resource type="AudioStream" uid="uid://b41yyeo3rwxf0" path="res://sounds/jarona/snd_glove_launch.wav" id="7_parry"]
+[ext_resource type="AudioStream" uid="uid://4qr5m0210ssg" path="res://sounds/jarona/snd_hurt1.wav" id="8_hurt"]
 
-[node name="Level1" instance=ExtResource("1_base")]
+[node name="Level1" unique_id=380599686 instance=ExtResource("1_base")]
 script = ExtResource("2_l1scr")
+jarona_windup_beats = 3.0
+jarona_dash_beats = 1.0
+parry_window = 0.15
+jarona_sounds = Array[AudioStream]([ExtResource("4_jsfx1"), ExtResource("5_jsfx2"), ExtResource("6_jsfx3")])
+parry_sound = ExtResource("7_parry")
+hurt_sound = ExtResource("8_hurt")
+jarona_sounds_volume_db = 1.5
+parry_sound_volume_db = 11.0
+hurt_sound_volume_db = 5.5
+shield_before_dash_beats = 0.5
+shield_after_hit_beats = 1.0
+jarona_damage = 1
 boss_name = "FLOWER MAN"
-chart_path = "res://music/Chart/FlowerManNew.chart"
-audio_path = "res://music/Ogg/song.ogg"
-lane_positions = [350.0, 490.0, 630.0, 770.0]
+
+[node name="BossSprite" parent="BossAnchor" parent_id_path=PackedInt32Array(968578802) index="2" unique_id=572626156]
+scale = Vector2(5, 5)
+sprite_frames = ExtResource("3_flowery")
+autoplay = "idle"
