@@ -13,3 +13,4 @@ mono_crash.*.json
 .DS_Store
 Thumbs.db
 /android/
+DESIGN.md
