@@ -1,0 +1,67 @@
+[gd_resource type="SpriteFrames" load_steps=9 format=3]
+
+[ext_resource type="Texture2D" path="res://Sprites/flowery/idle_0.png" id="idle_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/idle_1.png" id="idle_1"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/idle_2.png" id="idle_2"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/idle_3.png" id="idle_3"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/idle_4.png" id="idle_4"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/jarona_punch_0.png" id="jarona_punch_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/jarona_fair_0.png" id="jarona_fair_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/deflected_0.png" id="deflected_0"]
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("idle_0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("idle_1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("idle_2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("idle_3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("idle_4")
+}],
+"loop": true,
+"name": &"idle",
+"speed": 7.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("jarona_punch_0")
+}],
+"loop": true,
+"name": &"jarona_punch",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("jarona_fair_0")
+}],
+"loop": true,
+"name": &"jarona_fair",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("deflected_0")
+}],
+"loop": true,
+"name": &"deflected",
+"speed": 1.0
+}, {
+"frames": [],
+"loop": false,
+"name": &"attack",
+"speed": 8.0
+}, {
+"frames": [],
+"loop": false,
+"name": &"hit",
+"speed": 8.0
+}]

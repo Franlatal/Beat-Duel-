@@ -28,6 +28,13 @@ const REBINDABLE_ACTIONS := {
 	&"lane_1": "Lane 2",
 	&"lane_2": "Lane 3",
 	&"lane_3": "Lane 4",
+	&"parry": "Parry",
+}
+
+## Default keys for rebindable actions that project.godot's Input Map
+## doesn't define, so a new action works without editing the project.
+const FALLBACK_KEYS := {
+	&"parry": KEY_Z,
 }
 
 var master_volume: float = 1.0 # 0.0 - 1.0
@@ -133,8 +140,13 @@ func set_resolution(res: Vector2i) -> void:
 func _capture_default_keys() -> void:
 	for action in REBINDABLE_ACTIONS:
 		if not InputMap.has_action(action):
-			push_warning("Settings: input action '%s' is missing from the Input Map." % action)
 			InputMap.add_action(action)
+			if FALLBACK_KEYS.has(action):
+				var ev := InputEventKey.new()
+				ev.physical_keycode = FALLBACK_KEYS[action]
+				InputMap.action_add_event(action, ev)
+			else:
+				push_warning("Settings: input action '%s' is missing from the Input Map." % action)
 		_default_keys[action] = get_action_key(action)
 
 ## The keyboard event bound to an action, or null if it has none.

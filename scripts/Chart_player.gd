@@ -331,7 +331,8 @@ func _draw_hold_tails() -> void:
 		if state == NoteState.HOLDING:
 			col = col.lerp(Color.WHITE, 0.25)
 			shine_alpha = 0.5
-		elif state == NoteState.DROPPED:
+		elif state == NoteState.DROPPED or note.get_meta("greyed", false):
+			# dropped, or greyed out by a level (e.g. Level 1's jarona shield)
 			col = TAIL_DROPPED_COLOR
 			shine_alpha = 0.08
 
@@ -353,7 +354,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## Input action that drives a given chart lane. Used both for presses
 ## (_unhandled_input) and for checking whether a hold is still held.
-## LevelBase overrides this to spread keys out for 2/3-lane difficulties.
+## With fewer lanes, lane N always uses the "Lane N+1" keybind.
 func _action_for_lane(lane_index: int) -> String:
 	return "lane_%d" % lane_index
 
