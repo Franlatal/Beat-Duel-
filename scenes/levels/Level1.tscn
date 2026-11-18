@@ -8,8 +8,12 @@
 [ext_resource type="AudioStream" uid="uid://c7uw8g4mksxjl" path="res://sounds/jarona/jarona_3.mp3" id="6_jsfx3"]
 [ext_resource type="AudioStream" uid="uid://b41yyeo3rwxf0" path="res://sounds/jarona/snd_glove_launch.wav" id="7_parry"]
 [ext_resource type="AudioStream" uid="uid://4qr5m0210ssg" path="res://sounds/jarona/snd_hurt1.wav" id="8_hurt"]
+[ext_resource type="Script" uid="uid://defjbwmid01wd" path="res://scripts/FallingPetals.gd" id="9_petals"]
+[ext_resource type="Texture2D" uid="uid://bg633la1rmtxc" path="res://Sprites/flowery/petals.png" id="10_petaltex"]
+[ext_resource type="Texture2D" uid="uid://udjrxgxpj22n" path="res://Sprites/flowery/bg_sunset.png" id="11_sunset"]
+[ext_resource type="Texture2D" uid="uid://dq5dgndldy68b" path="res://Sprites/flowery/bg_vine.png" id="12_vine"]
 
-[node name="Level1" unique_id=380599686 instance=ExtResource("1_base")]
+[node name="Level1" unique_id=1912190828 instance=ExtResource("1_base")]
 script = ExtResource("2_l1scr")
 jarona_windup_beats = 3.0
 jarona_dash_beats = 1.0
@@ -17,13 +21,60 @@ parry_window = 0.15
 jarona_sounds = Array[AudioStream]([ExtResource("4_jsfx1"), ExtResource("5_jsfx2"), ExtResource("6_jsfx3")])
 parry_sound = ExtResource("7_parry")
 hurt_sound = ExtResource("8_hurt")
-jarona_sounds_volume_db = 1.5
+jarona_sounds_volume_db = 0.0
 parry_sound_volume_db = 11.0
-hurt_sound_volume_db = 5.5
+hurt_sound_volume_db = 5.0
 shield_before_dash_beats = 0.5
-shield_after_hit_beats = 1.0
+shield_after_hit_beats = 0.75
 jarona_damage = 1
+kidding_stand_beats = 2.0
+segment_fails_to_spare = 3
+prism_blow_text = "PRISM BLOW!"
+hit_shake_strength = 14.0
+hit_shake_time = 0.3
 boss_name = "FLOWER MAN"
+voice_folder = "res://sounds/flowery"
+
+[node name="Background" parent="BackgroundLayer" parent_id_path=PackedInt32Array(562744043) index="0" unique_id=793929631]
+material = null
+color = Color(0, 0, 0, 1)
+
+[node name="EqualizerBars" parent="BackgroundLayer" parent_id_path=PackedInt32Array(562744043) index="1" unique_id=1706508604]
+visible = false
+
+[node name="Sunset" type="TextureRect" parent="BackgroundLayer" parent_id_path=PackedInt32Array(562744043) index="2" unique_id=1396450587]
+texture_filter = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("11_sunset")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Vine" type="Sprite2D" parent="BackgroundLayer" parent_id_path=PackedInt32Array(562744043) index="3" unique_id=1933568786]
+texture_filter = 1
+texture_repeat = 2
+position = Vector2(250, 0)
+scale = Vector2(5, 5)
+texture = ExtResource("12_vine")
+centered = false
+region_enabled = true
+region_rect = Rect2(0, 0, 124, 864)
+
+[node name="Petals" type="Control" parent="BackgroundLayer" parent_id_path=PackedInt32Array(562744043) index="4" unique_id=512283612]
+texture_filter = 1
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("9_petals")
+texture = ExtResource("10_petaltex")
 
 [node name="BossSprite" parent="BossAnchor" parent_id_path=PackedInt32Array(968578802) index="2" unique_id=572626156]
 scale = Vector2(5, 5)

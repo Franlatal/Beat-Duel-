@@ -10,15 +10,15 @@ label = "Easy"
 track_name = "EasySingle"
 lane_count = 2
 
-[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_normal"]
+[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_medium"]
 script = ExtResource("2_diffopt")
-label = "Normal"
+label = "Medium"
 track_name = "MediumSingle"
 lane_count = 3
 
-[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_hard"]
+[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_expert"]
 script = ExtResource("2_diffopt")
-label = "Hard"
+label = "Expert"
 track_name = "ExpertSingle"
 lane_count = 4
 
@@ -27,7 +27,7 @@ script = ExtResource("1_leveldata")
 id = &"level_1"
 title = "Level 1"
 artist = "Unknown Artist"
-difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_l1_easy"), SubResource("DifficultyOption_l1_normal"), SubResource("DifficultyOption_l1_hard")])
+difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_l1_easy"), SubResource("DifficultyOption_l1_medium"), SubResource("DifficultyOption_l1_expert")])
 default_difficulty_index = 2
 bpm = 160.0
 description = "First real track."
