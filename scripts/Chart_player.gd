@@ -103,6 +103,10 @@ var upcoming_notes: Array = []
 var spawned_notes: Array = []
 ## Latest song time, cached for _draw().
 var _song_time: float = 0.0
+## Hit time (song seconds) of the note behind the judgement being emitted
+## right now through note_judged, NAN if there isn't one. Lets a level
+## score a judgement by the note's own time, not the moment it was judged.
+var judged_note_time: float = NAN
 
 # --- pre-roll silence (from a negative Offset) ----------------------------
 var start_delay: float = 0.0
@@ -133,6 +137,7 @@ func _ready() -> void:
 	if chart_data.is_empty():
 		push_error("Chart failed to parse — check chart_path/track_name.")
 		return
+	_prepare_chart()
 	upcoming_notes = chart_data.notes.duplicate()
 	segments = chart_data.get("segments", []).duplicate()
 	var lead_time := _spawn_lead_time()
@@ -147,6 +152,11 @@ func _ready() -> void:
 
 	if autostart:
 		start_playback()
+
+## Called once right after the chart is parsed, before any note is
+## queued. Override to change chart_data (notes, track_events) for a level.
+func _prepare_chart() -> void:
+	pass
 
 func start_playback() -> void:
 	if chart_data.is_empty() or playback_active:
@@ -219,6 +229,7 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 				note.position.y = _time_to_y(hit_time, song_time)
 				# Auto-miss: note has passed beyond the miss window
 				if song_time > hit_time + MISS_WINDOW:
+					judged_note_time = hit_time
 					_on_note_result("Miss", lane)
 					if is_hold:
 						_drop_hold(note, false, song_time)
@@ -228,6 +239,7 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 			NoteState.HOLDING:
 				# Head stays pinned to the hit line while the tail drains into it.
 				note.position.y = hit_line_y
+				judged_note_time = hit_time
 				if song_time >= end_time:
 					to_remove.append(note)
 					_on_note_result("Held", lane)
@@ -401,6 +413,7 @@ func _try_hit_lane(lane_index: int) -> void:
 		spawned_notes.erase(best_note)
 		best_note.queue_free()
 
+	judged_note_time = best_note.get_meta("hit_time")
 	_on_note_result(result, lane_index)
 
 ## Turns a hold note into a dead, greyed-out tail that just scrolls away.
@@ -425,6 +438,7 @@ func _on_note_result(result: String, lane_index: int) -> void:
 	_spawn_feedback_label(result, lane_index)
 
 	note_judged.emit(result, lane_index)
+	judged_note_time = NAN
 
 func _result_color(result: String) -> Color:
 	match result:

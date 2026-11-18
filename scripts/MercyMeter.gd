@@ -3,8 +3,11 @@ extends Control
 ## A MERCY meter in the style of Deltarune's: the word MERCY, a
 ## percentage, and an orange-red bar that fills with yellow from the left.
 ##
+## With inline on, it's one row to sit in the bottom party strip (see
+## BattlePartyPanel.add_status_widget): "MERCY", the bar, then "50%".
+##
 ## Call set_value() with 0..1. The fill slides to the new value, the bar
-## flashes, and a "+33%" pops up and floats away. The font comes from
+## flashes, and a "+50%" pops up and floats away. The font comes from
 ## the theme this control inherits, so add it under the level's HUDRoot.
 
 @export var bar_size: Vector2 = Vector2(200, 20)
@@ -19,6 +22,17 @@ extends Control
 @export var fill_time: float = 0.6
 ## Seconds the "+N%" popup and the flash last.
 @export var popup_time: float = 1.2
+
+@export_group("Inline")
+## One row: title, bar, percentage. For the bottom party strip.
+@export var inline: bool = false:
+	set(v):
+		inline = v
+		_update_size()
+## Where the bar starts, from the left edge; the title is right-aligned
+## before it.
+@export var inline_label_width: float = 96.0
+@export var inline_bar_size: Vector2 = Vector2(180, 15)
 
 const BORDER := 4.0
 const GAP := 8.0
@@ -36,7 +50,13 @@ func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_font = get_theme_font("font", "Label")
-	custom_minimum_size = Vector2(bar_size.x + BORDER * 2.0, font_size + GAP + bar_size.y + BORDER * 2.0)
+	_update_size()
+
+func _update_size() -> void:
+	if inline:
+		custom_minimum_size = Vector2(inline_label_width + inline_bar_size.x + 12.0 + font_size * 4.0, inline_bar_size.y)
+	else:
+		custom_minimum_size = Vector2(bar_size.x + BORDER * 2.0, font_size + GAP + bar_size.y + BORDER * 2.0)
 	size = custom_minimum_size
 
 ## Sets the meter (0 = empty, 1 = full). With animate, the fill slides
@@ -72,6 +92,9 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if _font == null:
 		return
+	if inline:
+		_draw_inline()
+		return
 	var text_y := float(font_size)   # baseline of the title row
 	_draw_text(Vector2(0, text_y), title, text_color)
 	var pct := "%d%%" % roundi(_shown * 100.0)
@@ -97,6 +120,27 @@ func _draw() -> void:
 		col.a = 1.0 - k * k
 		var pos := Vector2(bar.position.x, bar.end.y + BORDER + font_size + 20.0 - roundf(16.0 * k))
 		_draw_text(pos, _popup_text, col)
+
+func _draw_inline() -> void:
+	var bar := Rect2(Vector2(inline_label_width, 0), inline_bar_size)
+	var base_y := bar.end.y
+	var title_w := _font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	_draw_text(Vector2(bar.position.x - 12.0 - title_w, base_y), title, text_color)
+	draw_rect(bar, back_color)
+	var fill_w := minf(bar.size.x, roundf(bar.size.x * _shown / 3.0) * 3.0)
+	if fill_w > 0.0:
+		draw_rect(Rect2(bar.position, Vector2(fill_w, bar.size.y)), fill_color)
+	var pct := "%d%%" % roundi(_shown * 100.0)
+	_draw_text(Vector2(bar.end.x + 12.0, base_y), pct, fill_color if value > 0.0 else text_color)
+	if _popup_age < popup_time:
+		var k := _popup_age / popup_time
+		var flash := clampf(1.0 - k * 3.0, 0.0, 1.0)
+		if flash > 0.0:
+			draw_rect(bar, Color(1, 1, 1, flash * 0.8))
+		var col := fill_color
+		col.a = 1.0 - k * k
+		# floats up out of the strip
+		_draw_text(Vector2(bar.position.x + 12.0, bar.position.y - 12.0 - roundf(32.0 * k)), _popup_text, col)
 
 func _draw_text(pos: Vector2, text: String, col: Color) -> void:
 	var outline := outline_color

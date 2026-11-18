@@ -49,6 +49,9 @@ const LANE_LEFT_OFFSET := 400.0
 @export_range(1, 10, 1) var max_hp: int = 3
 ## Fraction of a segment's maximum possible score required to avoid losing 1 HP.
 @export_range(0.0, 1.0, 0.05) var segment_pass_ratio: float = 0.70
+## How much a "Good" hit counts toward the segment %, as a share of a
+## Perfect (a Good still scores points_good for the score).
+@export_range(0.0, 1.0, 0.05) var segment_good_credit: float = 0.8
 ## Whether to run the 3-2-1 countdown before the song starts.
 @export var countdown_enabled: bool = true
 ## Seconds per countdown step (3, 2, 1).
@@ -272,27 +275,34 @@ func _build_segment_records() -> void:
 				"evaluated": false,
 			})
 
-	# Pre-calculate the maximum achievable score in each segment (simulating
-	# a Perfect full-combo run starting at combo = 0 for each segment).
+	# The most a segment can earn: every note in it Perfect (and every hold
+	# held). Segment credit ignores the combo multiplier (that's only for
+	# the score), and each judgement counts toward the segment its note
+	# belongs to, so a segment always ends between 0% and 100%.
 	var lane_count := lane_positions.size()
 	for rec in _segment_records:
-		var sim_combo := 0
 		var max_pts := 0
 		for note in chart_data.notes:
 			if note.lane < 0 or note.lane >= lane_count:
 				continue
 			if note.time >= rec.start_time and note.time < rec.end_time:
-				sim_combo += 1
-				var mult := _multiplier_for_combo(sim_combo)
-				max_pts += points_perfect * mult
+				max_pts += points_perfect
 				if note.get("sustain", 0.0) >= min_hold_duration:
-					sim_combo += 1
-					mult = _multiplier_for_combo(sim_combo)
-					max_pts += points_held * mult
+					max_pts += points_held
 		rec.max_score = max_pts
 
 	if not _segment_records.is_empty():
 		_active_segment_record_idx = 0
+
+## How far the current segment is toward its maximum, 0..1 (Perfect on
+## every note = 1). The HUD's segment meter reads this.
+func get_segment_progress() -> float:
+	if _active_segment_record_idx < 0 or _active_segment_record_idx >= _segment_records.size():
+		return 0.0
+	var rec: Dictionary = _segment_records[_active_segment_record_idx]
+	if rec.max_score <= 0:
+		return 1.0
+	return clampf(float(rec.earned_score) / float(rec.max_score), 0.0, 1.0)
 
 func _multiplier_for_combo(c: int) -> int:
 	return clampi(1 + c / combo_per_multiplier_step, 1, max_multiplier)
@@ -332,8 +342,14 @@ func _on_level_note_judged(result: String, _lane_index: int) -> void:
 		multiplier = _multiplier_for_combo(combo)
 		var gained := base_pts * multiplier
 		score += gained
-		if _active_segment_record_idx >= 0 and _active_segment_record_idx < _segment_records.size():
-			_segment_records[_active_segment_record_idx].earned_score += gained
+		var credit := base_pts
+		if result == "Good":
+			credit = roundi(points_perfect * segment_good_credit)
+		var rec_idx := _active_segment_record_idx
+		if not is_nan(judged_note_time):
+			rec_idx = _record_index_for_time(judged_note_time)
+		if rec_idx >= 0 and rec_idx < _segment_records.size():
+			_segment_records[rec_idx].earned_score += credit
 		_play_sfx(hit_sfx)
 	else:
 		combo = 0
@@ -532,7 +548,7 @@ func _refresh_hud() -> void:
 			segment_title_label.text = "SEGMENT %d" % rec.index
 			var pct := 100
 			if rec.max_score > 0:
-				pct = roundi(float(rec.earned_score) / float(rec.max_score) * 100.0)
+				pct = mini(100, roundi(float(rec.earned_score) / float(rec.max_score) * 100.0))
 			var req_pct := roundi(segment_pass_ratio * 100.0)
 			segment_score_label.text = "%d%% / %d%%" % [pct, req_pct]
 			if pct >= req_pct:

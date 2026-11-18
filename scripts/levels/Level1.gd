@@ -11,11 +11,14 @@ extends LevelBase
 ## but too early, costs jarona_damage HP. Presses before the dash starts
 ## are ignored, so there's no penalty for reacting to the windup.
 ##
-## Notes whose hit time falls from shield_before_dash_beats before the
-## dash until shield_after_hit_beats after the attack lands are shielded: they're greyed out as soon as
-## they appear, and hit automatically (scored as Perfect, holds as Held)
-## when they reach the hit line, so the player only has to think about
-## the parry and can see in advance which notes they still have to play.
+## The chart is trimmed for the attacks when the level loads (see
+## _prepare_chart): a jarona (or JaKidding) that would overlap a segment
+## being graded is dropped, so he never does two things at once, and the
+## notes from clear_notes_before_hit_beats before each jarona lands until
+## clear_notes_after_hit_beats after it are removed (holds running
+## into that stretch are cut short), so the parry never clashes with
+## notes. The first jarona of a run shows a "PRESS <key> TO PARRY" hint,
+## and every parry press flashes an orange outline round the highway.
 ##
 ## The attacker is the boss himself, using his SpriteFrames (set on
 ## BossAnchor/BossSprite in Level1.tscn). He flashes white and crouches
@@ -33,7 +36,7 @@ extends LevelBase
 ## but as the dash starts he says his "jakidding" voice line instead of
 ## the jarona shout, stops short of the highway at the event's tick,
 ## stands there ("stand") for kidding_stand_beats and walks back to his
-## spot. Nothing to parry, no notes shielded, presses do nothing.
+## spot. Nothing to parry, its notes are left in, presses do nothing.
 ##
 ## Prism Blow: a failed segment costs no life in this level, because
 ## Flowery doesn't want to hurt you, he wants to spare you. Instead he
@@ -90,10 +93,12 @@ enum FakeState { WAITING, WINDUP, STAND, RETURN, DONE }
 @export_range(-40.0, 12.0, 0.5) var jarona_sounds_volume_db: float = 0.0
 @export_range(-40.0, 12.0, 0.5) var parry_sound_volume_db: float = 0.0
 @export_range(-40.0, 12.0, 0.5) var hurt_sound_volume_db: float = 0.0
-## Note shield: starts this many beats before the dash, and lasts this
+## Notes are removed from this many beats before the attack lands until this
 ## many beats after the attack lands.
-@export_range(0.0, 4.0, 0.25) var shield_before_dash_beats: float = 0.5
-@export_range(0.0, 4.0, 0.25) var shield_after_hit_beats: float = 0.75
+@export_range(0.0, 4.0, 0.25) var clear_notes_before_hit_beats: float = 0.5
+@export_range(0.0, 4.0, 0.25) var clear_notes_after_hit_beats: float = 0.25
+## Show "PRESS <parry key> TO PARRY" during the first jarona of a run.
+@export var show_parry_hint: bool = true
 ## Lives lost when an attack lands.
 @export_range(1, 10, 1) var jarona_damage: int = 1
 
@@ -103,10 +108,10 @@ enum FakeState { WAITING, WINDUP, STAND, RETURN, DONE }
 
 @export_group("Prism Blow")
 ## Failed segments it takes to fill the MERCY meter and end the run.
-## 3 means each one adds 33.3%.
-@export_range(1, 20, 1) var segment_fails_to_spare: int = 3
+## 2 means each one adds 50%.
+@export_range(1, 20, 1) var segment_fails_to_spare: int = 2
 ## What he says in the speech bubble. Empty = no bubble.
-@export var prism_blow_text: String = "PRISM BLOW!"
+@export var prism_blow_text: String = ""
 
 @export_group("Hit reactions")
 ## How far (pixels) and how long (seconds) the playfield shakes when
@@ -130,8 +135,12 @@ const ATTACK_SHADING := 0.65
 const WINDUP_FLASH_TIME := 0.3
 ## Seconds the blue takes to leave him when he's parried or stops.
 const TINT_OUT_TIME := 0.08
-## How shielded notes look (same as a missed note's greyed-out head).
-const SHIELDED_NOTE_MODULATE := Color(0.45, 0.45, 0.45, 0.8)
+## Orange outline round the highway on every parry press.
+const PARRY_PRESS_COLOR := Color(1.0, 0.55, 0.1)
+const PARRY_PRESS_TIME := 0.35
+## Seconds kept clear around a segment being graded when deciding
+## whether a jarona would overlap it.
+const SEGMENT_GRADE_MARGIN := 0.4
 ## Dash trail: a blue copy is left behind every AFTERIMAGE_INTERVAL
 ## seconds, starting at AFTERIMAGE_ALPHA and fading out over AFTERIMAGE_LIFE.
 const AFTERIMAGE_INTERVAL := 0.012
@@ -180,8 +189,11 @@ const PRISM_HAND_OFFSET := Vector2(-80, -40)
 const PRISM_BUBBLE_OFFSET := Vector2(-70, -170)
 ## Banner and popup color for MERCY (the meter's own yellow).
 const MERCY_COLOR := Color8(255, 248, 64)
-## Where the MERCY meter sits in the HUD (under the BACK button).
-const MERCY_METER_POS := Vector2(28, 104)
+## Where the MERCY meter sits if the level has no party panel (normally
+## it's a row under the HP bar in the bottom strip): just below Flower
+## Man, clear of the spot where he crouches for a jarona. Inside
+## %LevelUI (screen pixels).
+const MERCY_METER_POS := Vector2(1060, 660)
 ## Sideways steps (in his own art pixels) of the boss's shake when he's
 ## hurt, and the seconds each step lasts.
 const BOSS_HURT_SHAKE: Array[float] = [3.0, -3.0, 2.0, -2.0, 1.0, -1.0, 0.0]
@@ -218,6 +230,10 @@ var _prism_queued := false
 var _queued_prism_text := ""
 ## Segments failed so far; the MERCY meter shows this out of segment_fails_to_spare.
 var _failed_segments := 0
+## Song time of the last parry press, for the orange outline.
+var _parry_press_at := -INF
+## "PRESS Z TO PARRY" over the highway during the first jarona.
+var _parry_hint: Label
 var _mercy_meter: MercyMeter
 var _petals: FallingPetals
 ## Seconds of playfield shake left.
@@ -266,12 +282,21 @@ func _setup_level() -> void:
 	if _petals != null and not lane_positions.is_empty():
 		_petals.set_dim_zone(float(lane_positions[0]) - LANE_WIDTH, float(lane_positions[-1]) + LANE_WIDTH, PETAL_HIGHWAY_ALPHA)
 	_setup_prism_blow()
-	var hud_root := get_node_or_null("HUDLayer/HUDRoot") as Control
-	if hud_root != null:
-		_mercy_meter = MercyMeter.new()
-		_mercy_meter.name = "MercyMeter"
-		_mercy_meter.position = MERCY_METER_POS
-		hud_root.add_child(_mercy_meter)
+	_setup_parry_hint()
+	_mercy_meter = MercyMeter.new()
+	_mercy_meter.name = "MercyMeter"
+	var party := get_node_or_null("%PartyPanel")
+	if party != null and party.has_method("add_status_widget"):
+		# One row under the HP bar in the bottom strip.
+		_mercy_meter.inline = true
+		party.add_status_widget(_mercy_meter)
+	else:
+		var level_ui := get_node_or_null("%LevelUI") as Control
+		if level_ui == null:
+			level_ui = get_node_or_null("HUDLayer/HUDRoot") as Control
+		if level_ui != null:
+			_mercy_meter.position = MERCY_METER_POS
+			level_ui.add_child(_mercy_meter)
 
 func _setup_prism_blow() -> void:
 	_prism = PrismBlow.new()
@@ -299,62 +324,87 @@ func _process(delta: float) -> void:
 		_update_attacks(_song_time)
 		_update_fakes(_song_time)
 		_update_attack_sprites(_song_time)
+	_update_parry_hint(_song_time)
 	_start_queued_prism_blow()
 	_attack_layer.queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(PARRY_ACTION):
 		if playback_active and not is_game_over and not is_level_complete:
+			_parry_press_at = _current_song_time()
 			_try_parry()
 		get_viewport().set_input_as_handled()
 		return
 	super._unhandled_input(event)
 
-func _update_gameplay(song_time: float, delta: float) -> void:
-	_auto_hit_notes(song_time)
-	super._update_gameplay(song_time, delta)
-	_grey_out_shielded_notes()
+# --- chart trimming -------------------------------------------------------
 
-# --- note shield ----------------------------------------------------------
+## Trims the chart for the attacks before any note is queued: drops every
+## jarona / JaKidding that would overlap a segment being graded (he'd do
+## the attack and his segment reaction at once), then clears the notes
+## around each remaining jarona so the parry never clashes with notes.
+func _prepare_chart() -> void:
+	# Moments when a segment gets graded: each segment start after the
+	# first, and the end of the last note.
+	var grades: Array[float] = []
+	var segs: Array = chart_data.get("segments", [])
+	for i in range(1, segs.size()):
+		grades.append(segs[i].time)
+	var last_end := 0.0
+	for n in chart_data.notes:
+		last_end = maxf(last_end, n.time + n.get("sustain", 0.0))
+	grades.append(last_end)
 
-## True if a note at this song time falls under an attack's shield.
-func _is_shielded_time(time: float) -> bool:
-	for atk in _attacks:
-		if time < atk.shield_start:
-			return false   # sorted by time
-		if time <= atk.shield_end:
-			return true
-	return false
-
-## Greys out newly spawned notes that will be hit automatically.
-func _grey_out_shielded_notes() -> void:
-	for note in spawned_notes:
-		if note.get_meta("greyed", false) or note.get_meta("state") != NoteState.PENDING:
+	var kept: Array = []
+	var dropped := 0
+	for ev in chart_data.get("track_events", []):
+		if ev.name != JARONA_EVENT and ev.name != KIDDING_EVENT:
+			kept.append(ev)
 			continue
-		if _is_shielded_time(note.get_meta("hit_time")):
-			note.set_meta("greyed", true)
-			note.modulate = SHIELDED_NOTE_MODULATE
+		var beat := _beat_length_at(ev.time)
+		var from: float = ev.time - jarona_windup_beats * beat - SEGMENT_GRADE_MARGIN
+		var to: float = ev.time + AFTERMATH_TIME + SEGMENT_GRADE_MARGIN
+		if ev.name == KIDDING_EVENT:
+			to = ev.time + kidding_stand_beats * beat + KIDDING_RETURN_TIME + SEGMENT_GRADE_MARGIN
+		var clashes := false
+		for g in grades:
+			if g >= from and g <= to:
+				clashes = true
+				break
+		if clashes:
+			dropped += 1
+		else:
+			kept.append(ev)
+	chart_data["track_events"] = kept
 
-## Hits every shielded note that has reached the hit line, as if played
-## perfectly. Hold notes are completed on the spot.
-func _auto_hit_notes(song_time: float) -> void:
-	var shielded_now := _is_shielded_time(song_time)
-	for note in spawned_notes.duplicate():
-		var lane: int = note.get_meta("lane_index")
-		var state: int = note.get_meta("state")
-		var hit_time: float = note.get_meta("hit_time")
-		var done := false
-		if state == NoteState.PENDING and song_time >= hit_time and _is_shielded_time(hit_time):
-			_on_note_result("Perfect", lane)
-			if note.get_meta("is_hold"):
-				_on_note_result("Held", lane)
-			done = true
-		elif state == NoteState.HOLDING and shielded_now:
-			_on_note_result("Held", lane)
-			done = true
-		if done:
-			spawned_notes.erase(note)
-			note.queue_free()
+	# Clear the notes around each jarona that's left.
+	var windows: Array = []
+	for ev in kept:
+		if ev.name != JARONA_EVENT:
+			continue
+		var beat := _beat_length_at(ev.time)
+		windows.append([ev.time - maxf(clear_notes_before_hit_beats * beat, parry_window),
+			ev.time + maxf(clear_notes_after_hit_beats * beat, parry_window)])
+	var notes: Array = []
+	var removed := 0
+	for n in chart_data.notes:
+		var t: float = n.time
+		var inside := false
+		for w in windows:
+			if t >= w[0] and t <= w[1]:
+				inside = true
+				break
+			# A hold that runs into the window ends a quarter beat before it.
+			var sustain: float = n.get("sustain", 0.0)
+			if t < w[0] and t + sustain > w[0]:
+				var cut_to: float = w[0] - _beat_length_at(t) * 0.25 - t
+				n.sustain = cut_to if cut_to >= min_hold_duration else 0.0
+		if inside:
+			removed += 1
+		else:
+			notes.append(n)
+	chart_data.notes = notes
+	print_verbose("Level1: dropped %d attacks at segment grades, cleared %d notes" % [dropped, removed])
 
 # --- attack timeline ------------------------------------------------------
 
@@ -369,8 +419,6 @@ func _build_attacks() -> void:
 			"time": hit_time,
 			"start": hit_time - jarona_windup_beats * beat,
 			"dash_start": hit_time - minf(jarona_dash_beats, jarona_windup_beats) * beat,
-			"shield_start": hit_time - (minf(jarona_dash_beats, jarona_windup_beats) + shield_before_dash_beats) * beat,
-			"shield_end": hit_time + maxf(shield_after_hit_beats * beat, parry_window),
 			"state": AttackState.WAITING,
 			"resolved_at": 0.0,
 			"resolved_pos": Vector2.ZERO,
@@ -522,6 +570,71 @@ func _update_fakes(t: float) -> void:
 func _fake_dash_pos(fake: Dictionary, t: float) -> Vector2:
 	var q := clampf(inverse_lerp(fake.dash_start, fake.time, t), 0.0, 1.0)
 	return _launch_pos().lerp(_strike_pos(), KIDDING_REACH * q * q)
+
+# --- parry feedback -------------------------------------------------------
+
+## Orange outline round the whole note highway, fading after any parry
+## press, so the player can see the press registered.
+func _draw_parry_press() -> void:
+	var k := (_song_time - _parry_press_at) / PARRY_PRESS_TIME
+	if k < 0.0 or k >= 1.0 or lane_positions.is_empty():
+		return
+	var viewport_h: float = get_viewport().get_visible_rect().size.y
+	var grow := 6.0 * k
+	var left: float = float(lane_positions[0]) - LANE_WIDTH / 2.0 - 8.0 - grow
+	var right: float = float(lane_positions[-1]) + LANE_WIDTH / 2.0 + 8.0 + grow
+	var rect := Rect2(left, 4.0 - grow, right - left, viewport_h - 8.0 + grow * 2.0)
+	_attack_layer.draw_rect(rect, Color(PARRY_PRESS_COLOR, 1.0 - k), false, 6.0)
+
+func _setup_parry_hint() -> void:
+	if not show_parry_hint or _attacks.is_empty() or lane_positions.is_empty():
+		return
+	var hud_root := get_node_or_null("HUDLayer/HUDRoot") as Control
+	if hud_root == null:
+		return
+	_parry_hint = Label.new()
+	_parry_hint.name = "ParryHint"
+	_parry_hint.theme = UI_THEME
+	_parry_hint.text = "PRESS %s TO PARRY" % _parry_key_name()
+	_parry_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_parry_hint.add_theme_font_size_override("font_size", 24)
+	_parry_hint.add_theme_color_override("font_color", PARRY_PRESS_COLOR)
+	_parry_hint.add_theme_color_override("font_outline_color", Color8(13, 7, 33))
+	_parry_hint.add_theme_constant_override("outline_size", 10)
+	_parry_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var left := float(lane_positions[0]) - LANE_WIDTH / 2.0
+	var right := float(lane_positions[-1]) + LANE_WIDTH / 2.0
+	_parry_hint.position = Vector2(left - 200.0, hit_line_y * 0.5 - 90.0)
+	_parry_hint.size = Vector2(right - left + 400.0, 40.0)
+	_parry_hint.visible = false
+	hud_root.add_child(_parry_hint)
+
+## Shows the hint while the first jarona is winding up, blinking once
+## the dash starts.
+func _update_parry_hint(t: float) -> void:
+	if _parry_hint == null:
+		return
+	var atk: Dictionary = _attacks[0]
+	var visible_now: bool = atk.state == AttackState.WINDUP and not is_game_over
+	if visible_now and t >= atk.dash_start:
+		visible_now = fmod(t - atk.dash_start, 0.2) < 0.13
+	_parry_hint.visible = visible_now
+	if atk.state == AttackState.PARRIED or atk.state == AttackState.HIT or atk.state == AttackState.DONE:
+		_parry_hint.queue_free()
+		_parry_hint = null
+
+## The key bound to parry, as the player would read it (Z by default).
+func _parry_key_name() -> String:
+	for ev in InputMap.action_get_events(PARRY_ACTION):
+		if ev is InputEventKey:
+			var key := ev as InputEventKey
+			var code := key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
+			if key.physical_keycode != KEY_NONE:
+				code = DisplayServer.keyboard_get_keycode_from_physical(key.physical_keycode)
+			var key_name := OS.get_keycode_string(code)
+			if key_name != "":
+				return key_name.to_upper()
+	return "Z"
 
 # --- prism blow & hit reactions ------------------------------------------
 
@@ -743,6 +856,7 @@ func _update_afterimages(t: float) -> void:
 ## Where he was parried: a white flash, a thin white slash through it,
 ## and two grey rings spreading out to the left.
 func _draw_parry_fx() -> void:
+	_draw_parry_press()
 	for fx in _parry_fx.duplicate():
 		var age: float = _song_time - fx.at
 		if age > PARRY_RING_TIME + 0.1:
