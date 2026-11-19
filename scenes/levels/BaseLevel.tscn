@@ -6,6 +6,7 @@
 [ext_resource type="Theme" uid="uid://dusmotmn5xki4" path="res://themes/pixel_theme.tres" id="4_theme"]
 [ext_resource type="Script" path="res://scripts/LyricsDisplay.gd" id="5_lyrics"]
 [ext_resource type="Script" path="res://scripts/BattlePartyPanel.gd" id="7_party"]
+[ext_resource type="Script" path="res://scripts/BattleResultScreen.gd" id="8_result"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_bg"]
 shader = ExtResource("2_bgshd")
@@ -213,51 +214,13 @@ theme_override_font_sizes/font_size = 72
 text = "3"
 horizontal_alignment = 1
 
-[node name="ResultPanel" type="PanelContainer" parent="HUDLayer/HUDRoot/CenterOverlay"]
+[node name="ResultScreen" type="Control" parent="HUDLayer/HUDRoot"]
 unique_name_in_owner = true
 visible = false
-custom_minimum_size = Vector2(540, 0)
-layout_mode = 2
-theme_type_variation = &"BattleBox"
-
-[node name="Margin" type="MarginContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 28
-theme_override_constants/margin_bottom = 24
-
-[node name="VBox" type="VBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 20
-
-[node name="ResultTitleLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"HeaderLabel"
-text = "VICTORY!"
-horizontal_alignment = 1
-
-[node name="ResultStatsLabel" type="Label" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "SCORE: 0"
-horizontal_alignment = 1
-
-[node name="Buttons" type="HBoxContainer" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 16
-alignment = 1
-
-[node name="RetryButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 52)
-layout_mode = 2
-text = "RETRY"
-
-[node name="MenuButton" type="Button" parent="HUDLayer/HUDRoot/CenterOverlay/ResultPanel/Margin/VBox/Buttons"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 52)
-layout_mode = 2
-text = "LEVELS"
-
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("8_result")

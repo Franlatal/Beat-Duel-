@@ -632,6 +632,15 @@ func _show_status_banner(text: String, col: Color) -> void:
 	_banner_tween.tween_property(status_banner, "modulate:a", 0.0, 0.4)
 
 func _show_result_panel(title_text: String, title_col: Color) -> void:
+	# The Deltarune style end screen (scripts/BattleResultScreen.gd).
+	var screen := get_node_or_null("%ResultScreen")
+	if screen != null and screen.has_method("show_result"):
+		var kind := "victory" if is_level_complete else ("game_over" if title_text == "GAME OVER" else "loss")
+		screen.call("show_result", kind, title_text, {
+			"score": score, "max_combo": max_combo, "accuracy": GameSession.last_accuracy,
+			"hp": hp, "max_hp": max_hp,
+		})
+		return
 	if result_panel == null:
 		return
 	result_panel.visible = true

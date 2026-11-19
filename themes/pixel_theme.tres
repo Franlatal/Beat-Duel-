@@ -1,4 +1,4 @@
-[gd_resource type="Theme" format=3 uid="uid://bpy0382k0s4kk"]
+[gd_resource type="Theme" format=3 uid="uid://dhpxf77hyyju4"]
 
 [ext_resource type="FontFile" uid="uid://ecyvrcsfqjb2" path="res://themes/fonts/PressStart2P-Regular.ttf" id="f_font"]
 [ext_resource type="Texture2D" uid="uid://p6dr0ltffutj" path="res://themes/pixel/arrow_down.png" id="t_arrow_down"]
@@ -41,6 +41,14 @@ border_width_right = 6
 border_width_bottom = 6
 border_color = Color(1, 1, 1, 1)
 anti_aliasing = false
+
+[sub_resource type="StyleBoxEmpty" id="SB_empty"]
+
+[sub_resource type="StyleBoxEmpty" id="SB_battle_option"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
 
 [sub_resource type="StyleBoxTexture" id="SB_btn_disabled"]
 content_margin_left = 21.0
@@ -97,8 +105,6 @@ texture_margin_left = 9.0
 texture_margin_top = 9.0
 texture_margin_right = 9.0
 texture_margin_bottom = 12.0
-
-[sub_resource type="StyleBoxEmpty" id="SB_empty"]
 
 [sub_resource type="StyleBoxTexture" id="SB_chip_normal"]
 content_margin_left = 12.0
@@ -303,6 +309,18 @@ default_font = ExtResource("f_font")
 default_font_size = 16
 BattleBox/base_type = &"PanelContainer"
 BattleBox/styles/panel = SubResource("SB_battle_box")
+BattleOptionButton/base_type = &"Button"
+BattleOptionButton/colors/font_color = Color(1, 1, 1, 1)
+BattleOptionButton/colors/font_focus_color = Color(1, 1, 0, 1)
+BattleOptionButton/colors/font_hover_color = Color(1, 1, 0, 1)
+BattleOptionButton/colors/font_hover_pressed_color = Color(1, 1, 0, 1)
+BattleOptionButton/colors/font_pressed_color = Color(1, 1, 0, 1)
+BattleOptionButton/font_sizes/font_size = 32
+BattleOptionButton/styles/focus = SubResource("SB_empty")
+BattleOptionButton/styles/hover = SubResource("SB_battle_option")
+BattleOptionButton/styles/hover_pressed = SubResource("SB_battle_option")
+BattleOptionButton/styles/normal = SubResource("SB_battle_option")
+BattleOptionButton/styles/pressed = SubResource("SB_battle_option")
 BattleTextLabel/base_type = &"Label"
 BattleTextLabel/colors/font_color = Color(1, 1, 1, 1)
 BattleTextLabel/colors/font_outline_color = Color(0, 0, 0, 1)

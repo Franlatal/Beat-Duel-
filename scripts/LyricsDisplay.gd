@@ -47,9 +47,15 @@ extends Control
 @export var chorus_section_keyword: String = "chorus"
 @export var chorus_unsung_color: Color = Color8(244, 240, 40)
 @export var chorus_sung_color: Color = Color8(104, 236, 104)
-## Soft pale glow around the chorus text.
-@export var chorus_glow_color: Color = Color(0.8, 1.0, 0.8, 0.28)
-@export var chorus_glow_size: int = 10
+## White rim drawn round the letters once they're sung (Deltarune's
+## chorus text is green with a white edge). 0 = no rim.
+@export var chorus_rim_color: Color = Color(0.94, 1.0, 0.94)
+@export var chorus_rim_size: int = 6
+## Soft pale glow around the sung chorus text.
+@export var chorus_glow_color: Color = Color(0.85, 1.0, 0.85, 0.35)
+@export var chorus_glow_size: int = 14
+## How far the sung part of the smear is tinted toward white (0..1).
+@export var smear_sung_whiten: float = 0.45
 ## Echo copies drawn on each side of a chorus line.
 @export var smear_count: int = 10
 ## Pixels between echoes, and how far each one jitters.
@@ -139,20 +145,32 @@ func _draw() -> void:
 	var cols := _line_colors(chorus)
 	if chorus and smear_count > 0:
 		_draw_smear(line, t, font_size, alpha, cols)
-	if chorus and chorus_glow_size > 0:
-		var glow := chorus_glow_color
-		glow.a *= alpha
-		_draw_line(line, t, font_size, Vector2.ZERO, [glow, glow], chorus_glow_size + outline_size, glow)
 	var outline := outline_color
 	outline.a *= alpha
-	_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), outline_size, outline)
+	var none := Color.TRANSPARENT
+	var rim := chorus_rim_size if chorus else 0
+	if chorus and chorus_glow_size > 0:
+		# Pale haze round the sung letters only.
+		var glow := chorus_glow_color
+		glow.a *= alpha
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], outline_size + rim + chorus_glow_size, [none, glow])
+	if rim > 0:
+		# Dark edge outside the white rim, then the rim itself (sung letters).
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], outline_size, [outline, none])
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], outline_size + rim, [none, outline])
+		var rim_col := chorus_rim_color
+		rim_col.a *= alpha
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], rim, [none, rim_col])
+		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), 0, [none, none])
+	else:
+		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), outline_size, [outline, outline])
 
 	if show_next_line and _line_index + 1 < _lines.size():
 		var next_baseline := baseline + roundf(font_size * 0.6 + next_line_font_size + outline_size)
 		draw_set_transform(Vector2(roundf(size.x / 2.0), next_baseline), 0.0, Vector2.ONE)
 		var nc := next_line_color
 		nc.a *= alpha
-		_draw_line(_lines[_line_index + 1], -INF, next_line_font_size, Vector2.ZERO, [nc, nc], outline_size, outline)
+		_draw_line(_lines[_line_index + 1], -INF, next_line_font_size, Vector2.ZERO, [nc, nc], outline_size, [outline, outline])
 
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 
@@ -178,19 +196,23 @@ func _draw_smear(line: Dictionary, t: float, fs: int, alpha: float, cols: Array)
 	for i in range(smear_count, 0, -1):
 		var fade := smear_alpha * (1.0 - float(i - 1) / float(smear_count)) * alpha
 		var echo_cols := []
-		for c in cols:
-			var e: Color = (c as Color).darkened(smear_darken)
+		for k in range(cols.size()):
+			var c: Color = cols[k]
+			if k == 1:
+				c = c.lerp(Color.WHITE, smear_sung_whiten)
+			var e: Color = c.darkened(smear_darken)
 			e.a = fade
 			echo_cols.append(e)
 		for side in [-1.0, 1.0]:
 			var dx: float = side * (i * smear_spacing + rng.randf_range(-smear_jitter, smear_jitter))
-			_draw_line(line, t, fs, Vector2(roundf(dx), 0.0), echo_cols, 0, Color.TRANSPARENT)
+			_draw_line(line, t, fs, Vector2(roundf(dx), 0.0), echo_cols, 0, [Color.TRANSPARENT, Color.TRANSPARENT])
 
 ## Draws one line centered on x = 0 with its baseline at y = 0 (the
 ## caller positions it with draw_set_transform), shifted by offset.
-## cols = [unsung, sung]; letters turn sung left to right while each
-## syllable is sung. outline_px 0 draws no outline.
-func _draw_line(line: Dictionary, t: float, fs: int, offset: Vector2, cols: Array, outline_px: int, outline: Color) -> void:
+## cols and outlines are [unsung, sung]; letters turn sung left to right
+## while each syllable is sung. A fully transparent color skips that
+## part, and outline_px 0 draws no outline.
+func _draw_line(line: Dictionary, t: float, fs: int, offset: Vector2, cols: Array, outline_px: int, outlines: Array) -> void:
 	var syllables: Array = line.syllables
 	var widths: Array[float] = []
 	var total := 0.0
@@ -209,19 +231,21 @@ func _draw_line(line: Dictionary, t: float, fs: int, offset: Vector2, cols: Arra
 			if k < 1.0:
 				hop = roundf(hop_height * sin(PI * k))
 		var pos := Vector2(x, offset.y - hop)
-		if outline_px > 0:
-			draw_string_outline(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, outline_px, outline)
-		var sung_chars := _sung_chars(syllables, i, t)
-		if sung_chars >= text.length():
-			draw_string(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cols[1])
-		elif sung_chars <= 0:
-			draw_string(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cols[0])
-		else:
-			var head := text.substr(0, sung_chars)
-			draw_string(_font, pos, head, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cols[1])
-			var head_w := _font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			draw_string(_font, pos + Vector2(head_w, 0.0), text.substr(sung_chars), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, cols[0])
+		var sung_chars := clampi(_sung_chars(syllables, i, t), 0, text.length())
+		var head := text.substr(0, sung_chars)
+		var tail := text.substr(sung_chars)
+		var head_w := _font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x if head != "" else 0.0
+		_draw_part(head, pos, fs, cols[1], outline_px, outlines[1])
+		_draw_part(tail, pos + Vector2(head_w, 0.0), fs, cols[0], outline_px, outlines[0])
 		x += widths[i]
+
+func _draw_part(text: String, pos: Vector2, fs: int, col: Color, outline_px: int, outline: Color) -> void:
+	if text == "":
+		return
+	if outline_px > 0 and outline.a > 0.0:
+		draw_string_outline(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, outline_px, outline)
+	if col.a > 0.0:
+		draw_string(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 ## How many letters of syllable i are green at time t: the sweep starts
 ## when it's sung and takes fill_time (or until the next syllable).

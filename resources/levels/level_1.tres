@@ -33,3 +33,6 @@ bpm = 160.0
 description = "First real track."
 level_scene = ExtResource("3_scene")
 unlocked = true
+preview_audio_path = "res://music/Ogg/song.ogg"
+preview_start = 51.0
+preview_length = 24.0

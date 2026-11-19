@@ -49,7 +49,7 @@ segment_fails_to_spare = 2
 prism_blow_text = ""
 hit_shake_strength = 14.0
 hit_shake_time = 0.3
-boss_name = "FLOWER MAN"
+boss_name = ""
 voice_folder = "res://sounds/flowery"
 
 [node name="Background" parent="BackgroundLayer" index="0"]
