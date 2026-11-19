@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="NoteSkin" load_steps=28 format=3]
+
+[ext_resource type="Script" path="res://scripts/NoteSkin.gd" id="1_skin"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/flower_0.png" id="2_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/flower_1.png" id="3_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/flower_2.png" id="4_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/flower_3.png" id="5_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_0.png" id="6_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_1.png" id="7_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_2.png" id="8_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_3.png" id="9_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_0.png" id="10_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_1.png" id="11_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_2.png" id="12_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_3.png" id="13_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_end_0.png" id="14_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_end_1.png" id="15_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_end_2.png" id="16_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_end_3.png" id="17_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_dead.png" id="18_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/tail_end_dead.png" id="19_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/burst_0.png" id="20_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/burst_1.png" id="21_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/burst_2.png" id="22_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/burst_3.png" id="23_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_pressed_0.png" id="24_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_pressed_1.png" id="25_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_pressed_2.png" id="26_t"]
+[ext_resource type="Texture2D" path="res://Sprites/notes_flowery/receptor_pressed_3.png" id="27_t"]
+
+[resource]
+script = ExtResource("1_skin")
+pixel_scale = 3
+note_textures = Array[Texture2D]([ExtResource("2_t"), ExtResource("3_t"), ExtResource("4_t"), ExtResource("5_t")])
+receptor_textures = Array[Texture2D]([ExtResource("6_t"), ExtResource("7_t"), ExtResource("8_t"), ExtResource("9_t")])
+receptor_pressed_textures = Array[Texture2D]([ExtResource("24_t"), ExtResource("25_t"), ExtResource("26_t"), ExtResource("27_t")])
+receptor_pressed_brightness = 1.7
+receptor_idle_brightness = 1.0
+tail_textures = Array[Texture2D]([ExtResource("10_t"), ExtResource("11_t"), ExtResource("12_t"), ExtResource("13_t")])
+tail_end_textures = Array[Texture2D]([ExtResource("14_t"), ExtResource("15_t"), ExtResource("16_t"), ExtResource("17_t")])
+dead_tail_texture = ExtResource("18_t")
+dead_tail_end_texture = ExtResource("19_t")
+holding_brightness = 1.35
+burst_textures = Array[Texture2D]([ExtResource("20_t"), ExtResource("21_t"), ExtResource("22_t"), ExtResource("23_t")])
+burst_frames = 6
+burst_frame_time = 0.045

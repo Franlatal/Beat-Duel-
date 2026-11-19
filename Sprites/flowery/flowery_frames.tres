@@ -1,4 +1,4 @@
-[gd_resource type="SpriteFrames" load_steps=9 format=3]
+[gd_resource type="SpriteFrames" load_steps=20 format=3]
 
 [ext_resource type="Texture2D" path="res://Sprites/flowery/idle_0.png" id="idle_0"]
 [ext_resource type="Texture2D" path="res://Sprites/flowery/idle_1.png" id="idle_1"]
@@ -8,6 +8,17 @@
 [ext_resource type="Texture2D" path="res://Sprites/flowery/jarona_punch_0.png" id="jarona_punch_0"]
 [ext_resource type="Texture2D" path="res://Sprites/flowery/jarona_fair_0.png" id="jarona_fair_0"]
 [ext_resource type="Texture2D" path="res://Sprites/flowery/deflected_0.png" id="deflected_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/hurt_0.png" id="hurt_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/crouch_0.png" id="crouch_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/stand_0.png" id="stand_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/stand_1.png" id="stand_1"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/stand_2.png" id="stand_2"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/stand_3.png" id="stand_3"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/stand_4.png" id="stand_4"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/kiss_0.png" id="kiss_0"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/kiss_1.png" id="kiss_1"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/kiss_2.png" id="kiss_2"]
+[ext_resource type="Texture2D" path="res://Sprites/flowery/kiss_3.png" id="kiss_3"]
 
 [resource]
 animations = [{
@@ -60,8 +71,56 @@ animations = [{
 "name": &"attack",
 "speed": 8.0
 }, {
-"frames": [],
+"frames": [{
+"duration": 5.0,
+"texture": ExtResource("hurt_0")
+}],
 "loop": false,
 "name": &"hit",
-"speed": 8.0
+"speed": 10.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("crouch_0")
+}],
+"loop": true,
+"name": &"crouch",
+"speed": 1.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("stand_0")
+}, {
+"duration": 1.0,
+"texture": ExtResource("stand_1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("stand_2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("stand_3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("stand_4")
+}],
+"loop": true,
+"name": &"stand",
+"speed": 6.0
+}, {
+"frames": [{
+"duration": 2.0,
+"texture": ExtResource("kiss_0")
+}, {
+"duration": 2.0,
+"texture": ExtResource("kiss_1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("kiss_2")
+}, {
+"duration": 13.0,
+"texture": ExtResource("kiss_3")
+}],
+"loop": false,
+"name": &"kiss",
+"speed": 10.0
 }]

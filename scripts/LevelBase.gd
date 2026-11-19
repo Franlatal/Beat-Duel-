@@ -15,12 +15,26 @@ extends ChartPlayer
 ##   segment's max possible score; if not, deducts 1 HP (0 HP = Game Over).
 ## - Drives the Boss AnimatedSprite2D on the right side of the screen (with an
 ##   automatic visual placeholder until custom sprite frames are assigned).
-## - Triggers optional SFX players (Hit, Miss, Countdown, SegmentPass, SegmentFail).
+## - Plays sound effects on the SFX/ players (Hit, Miss, Countdown,
+##   CountdownGo, SegmentPass, SegmentFail, Victory, GameOver). A player with
+##   no stream set in the scene picks up the file of the same name from
+##   sfx_folder (hit, miss, countdown, countdown_go, segment_pass,
+##   segment_fail, victory, game_over; .wav, .ogg or .mp3); with no file it
+##   stays silent. "hit" clicks on every Perfect / Good, "hold" loops while
+##   a hold note is held (one per lane, pitched per lane), optional
+##   "hold_end" plays when a hold is finished, and optional countdown_3,
+##   countdown_2, countdown_1 replace "countdown" for that one step.
+## - Plays the boss's voice clips from voice_folder, by file name: intro,
+##   segment_pass, segment_fail, victory, game_over, plus one per chart track
+##   event (an "E jakidding" in the played track plays jakidding.wav at that
+##   moment). name_1, name_2, ... are picked from at random. See
+##   play_boss_voice().
 ## - Provides virtual hooks for level-specific mechanics:
 ##     _setup_level()
 ##     _on_segment_changed(index: int)
 ##     _on_segment_evaluated(segment_index: int, passed: bool)
 ##     _on_boss_damaged() / _on_player_damaged()
+##     _punish_failed_segment(segment_index: int)
 ## - damage_player(amount) for level mechanics that cost lives.
 
 const LEVEL_SELECT_SCENE := "res://scenes/LevelSelect.tscn"
@@ -38,6 +52,9 @@ const LANE_LEFT_OFFSET := 400.0
 @export_range(1, 10, 1) var max_hp: int = 3
 ## Fraction of a segment's maximum possible score required to avoid losing 1 HP.
 @export_range(0.0, 1.0, 0.05) var segment_pass_ratio: float = 0.70
+## How much a "Good" hit counts toward the segment %, as a share of a
+## Perfect (a Good still scores points_good for the score).
+@export_range(0.0, 1.0, 0.05) var segment_good_credit: float = 0.8
 ## Whether to run the 3-2-1 countdown before the song starts.
 @export var countdown_enabled: bool = true
 ## Seconds per countdown step (3, 2, 1).
@@ -54,6 +71,37 @@ const LANE_LEFT_OFFSET := 400.0
 @export_group("Boss")
 ## Display name shown beneath/above the boss sprite.
 @export var boss_name: String = "BOSS"
+
+@export_group("Sound")
+## Folder with the shared sound effects. A file named hit, miss, countdown,
+## countdown_go, segment_pass, segment_fail, victory or game_over (.wav,
+## .ogg or .mp3) is used for the SFX/ player of the same name, unless that
+## player already has a stream set in the scene. Missing files stay silent.
+@export_dir var sfx_folder: String = "res://sounds/sfx"
+## Volume of the sound effects, in decibels (0 = as recorded).
+@export_range(-40.0, 12.0, 0.5) var sfx_volume_db: float = 0.0
+## Shortest gap between two miss sounds, in seconds, so a run of missed
+## notes doesn't turn into a machine gun.
+@export_range(0.0, 1.0, 0.01) var miss_sound_cooldown: float = 0.12
+## Click (the "hit" file in sfx_folder) on every note you hit.
+@export var hit_sounds_enabled: bool = true
+## Extra volume for the note click, in decibels. It plays on every note,
+## so it sits under the music by default.
+@export_range(-40.0, 12.0, 0.5) var hit_sound_volume_db: float = -4.0
+## Loop the "hold" file in sfx_folder while a hold note is held.
+@export var hold_sounds_enabled: bool = true
+## Extra volume for the hold loop, in decibels.
+@export_range(-40.0, 12.0, 0.5) var hold_sound_volume_db: float = -6.0
+## Pitch of the hold loop in each lane (1.0 = as recorded), left to right,
+## so two holds at once sound like a chord instead of one louder tone.
+@export var hold_lane_pitches: Array[float] = [1.0, 1.125, 1.25, 1.333]
+## Folder with this level's boss voice clips, found by file name: intro,
+## segment_pass, segment_fail, victory, game_over, and the name of any
+## chart track event (jakidding.wav plays on "E jakidding"). Add _1, _2,
+## ... to a name for variants picked at random. Empty = no voice.
+@export_dir var voice_folder: String = ""
+## Volume of the voice clips, in decibels (0 = as recorded).
+@export_range(-40.0, 12.0, 0.5) var voice_volume_db: float = 0.0
 
 # --- runtime state --------------------------------------------------------
 var level: LevelData
@@ -85,6 +133,9 @@ var _active_segment_record_idx: int = -1
 @onready var countdown_sfx: AudioStreamPlayer = get_node_or_null("SFX/CountdownSFX")
 @onready var segment_pass_sfx: AudioStreamPlayer = get_node_or_null("SFX/SegmentPassSFX")
 @onready var segment_fail_sfx: AudioStreamPlayer = get_node_or_null("SFX/SegmentFailSFX")
+@onready var countdown_go_sfx: AudioStreamPlayer = get_node_or_null("SFX/CountdownGoSFX")
+@onready var victory_sfx: AudioStreamPlayer = get_node_or_null("SFX/VictorySFX")
+@onready var game_over_sfx: AudioStreamPlayer = get_node_or_null("SFX/GameOverSFX")
 
 @onready var back_button: Button = get_node_or_null("%BackButton")
 @onready var hearts_container: HBoxContainer = get_node_or_null("%HeartsContainer")
@@ -102,6 +153,36 @@ var _active_segment_record_idx: int = -1
 
 var _boss_idle_tween: Tween
 var _banner_tween: Tween
+
+# --- sound state ----------------------------------------------------------
+const SOUND_EXTENSIONS: Array[String] = ["wav", "ogg", "mp3"]
+## Highest variant number looked for (name_1 ... name_9).
+const MAX_SOUND_VARIANTS := 9
+## Voice cues every level has. Chart track events add their own.
+const VOICE_CUES: Array[String] = ["intro", "segment_pass", "segment_fail", "victory", "game_over"]
+
+var _voice_player: AudioStreamPlayer
+## cue name -> Array[AudioStream] (empty when the folder has no such clip)
+var _voice_clips: Dictionary = {}
+## The last clip played for each cue, so variants don't repeat back to back.
+var _last_voice_clip: Dictionary = {}
+## Chart track events that have a voice clip: [{time, name}], sorted by time.
+var _voice_events: Array = []
+var _next_voice_event: int = 0
+var _last_miss_sound_msec: int = -1000000
+## Optional "hold_end" sound (finished hold), made in _setup_sound().
+var hold_end_sfx: AudioStreamPlayer
+## countdown_3 / countdown_2 / countdown_1 by step text ("3", "2", "1").
+var _countdown_step_sounds: Dictionary = {}
+var _countdown_default_stream: AudioStream
+## The "hold" loop, and one player + fade gain (0..1) per lane.
+var _hold_stream: AudioStream
+var _hold_players: Array[AudioStreamPlayer] = []
+var _hold_gains: Array[float] = []
+var _hold_base_db: float = 0.0
+## Fade times of the hold loop, so it never clicks on or off.
+const HOLD_FADE_IN := 0.04
+const HOLD_FADE_OUT := 0.1
 
 func _ready() -> void:
 	level = GameSession.current_level
@@ -131,9 +212,11 @@ func _ready() -> void:
 
 	_build_segment_records()
 	_setup_boss_visuals()
+	_setup_sound()
 	_refresh_hud()
 	_setup_level()
 
+	play_boss_voice("intro")
 	if countdown_enabled:
 		_run_countdown()
 	else:
@@ -142,7 +225,9 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	_update_hold_sounds(delta)
 	if playback_active and not is_game_over and not is_level_complete:
+		_update_voice_events(_song_time)
 		_check_pending_segment_evaluations()
 
 # --- lane & input mapping -------------------------------------------------
@@ -172,7 +257,11 @@ func _run_countdown() -> void:
 		countdown_label.scale = Vector2(1.35, 1.35)
 		countdown_label.modulate = Color(1, 1, 1, 1)
 		countdown_label.pivot_offset = countdown_label.size / 2.0
-		_play_sfx(countdown_sfx)
+		if i == steps.size() - 1 and countdown_go_sfx != null and countdown_go_sfx.stream != null:
+			_play_sfx(countdown_go_sfx)
+		elif countdown_sfx != null:
+			countdown_sfx.stream = _countdown_step_sounds.get(steps[i], _countdown_default_stream)
+			_play_sfx(countdown_sfx)
 
 		var tw := create_tween()
 		tw.set_parallel(true)
@@ -216,27 +305,34 @@ func _build_segment_records() -> void:
 				"evaluated": false,
 			})
 
-	# Pre-calculate the maximum achievable score in each segment (simulating
-	# a Perfect full-combo run starting at combo = 0 for each segment).
+	# The most a segment can earn: every note in it Perfect (and every hold
+	# held). Segment credit ignores the combo multiplier (that's only for
+	# the score), and each judgement counts toward the segment its note
+	# belongs to, so a segment always ends between 0% and 100%.
 	var lane_count := lane_positions.size()
 	for rec in _segment_records:
-		var sim_combo := 0
 		var max_pts := 0
 		for note in chart_data.notes:
 			if note.lane < 0 or note.lane >= lane_count:
 				continue
 			if note.time >= rec.start_time and note.time < rec.end_time:
-				sim_combo += 1
-				var mult := _multiplier_for_combo(sim_combo)
-				max_pts += points_perfect * mult
+				max_pts += points_perfect
 				if note.get("sustain", 0.0) >= min_hold_duration:
-					sim_combo += 1
-					mult = _multiplier_for_combo(sim_combo)
-					max_pts += points_held * mult
+					max_pts += points_held
 		rec.max_score = max_pts
 
 	if not _segment_records.is_empty():
 		_active_segment_record_idx = 0
+
+## How far the current segment is toward its maximum, 0..1 (Perfect on
+## every note = 1). The HUD's segment meter reads this.
+func get_segment_progress() -> float:
+	if _active_segment_record_idx < 0 or _active_segment_record_idx >= _segment_records.size():
+		return 0.0
+	var rec: Dictionary = _segment_records[_active_segment_record_idx]
+	if rec.max_score <= 0:
+		return 1.0
+	return clampf(float(rec.earned_score) / float(rec.max_score), 0.0, 1.0)
 
 func _multiplier_for_combo(c: int) -> int:
 	return clampi(1 + c / combo_per_multiplier_step, 1, max_multiplier)
@@ -276,13 +372,22 @@ func _on_level_note_judged(result: String, _lane_index: int) -> void:
 		multiplier = _multiplier_for_combo(combo)
 		var gained := base_pts * multiplier
 		score += gained
-		if _active_segment_record_idx >= 0 and _active_segment_record_idx < _segment_records.size():
-			_segment_records[_active_segment_record_idx].earned_score += gained
-		_play_sfx(hit_sfx)
+		var credit := base_pts
+		if result == "Good":
+			credit = roundi(points_perfect * segment_good_credit)
+		var rec_idx := _active_segment_record_idx
+		if not is_nan(judged_note_time):
+			rec_idx = _record_index_for_time(judged_note_time)
+		if rec_idx >= 0 and rec_idx < _segment_records.size():
+			_segment_records[rec_idx].earned_score += credit
+		if result == "Held":
+			_play_sfx(hold_end_sfx)   # the head already clicked
+		elif hit_sounds_enabled:
+			_play_hit_sound()
 	else:
 		combo = 0
 		multiplier = 1
-		_play_sfx(miss_sfx)
+		_play_miss_sound()
 
 	_refresh_hud()
 
@@ -329,14 +434,14 @@ func _evaluate_segment(record_idx: int) -> void:
 
 	if passed:
 		_play_sfx(segment_pass_sfx)
+		play_boss_voice("segment_pass")
 		play_boss_animation(&"hit")
 		_show_status_banner("SEGMENT %d CLEARED!" % rec.index, Color(0.3, 1.0, 0.55))
 		_on_boss_damaged()
 	else:
 		_play_sfx(segment_fail_sfx)
-		play_boss_animation(&"attack")
-		_show_status_banner("SEGMENT %d FAILED! -1 HP" % rec.index, Color(1.0, 0.3, 0.35))
-		damage_player(1)
+		play_boss_voice("segment_fail")
+		_punish_failed_segment(rec.index)
 		if is_game_over:
 			return
 
@@ -365,16 +470,22 @@ func _on_chart_song_finished() -> void:
 				return
 	_trigger_level_complete()
 
-func _trigger_game_over() -> void:
+## Ends the run as a loss. title is the heading of the result panel, for
+## levels that lose in their own way (e.g. Level 1's "YOU WERE SPARED").
+func _trigger_game_over(title: String = "GAME OVER") -> void:
 	is_game_over = true
 	stop_playback()
 	_save_session_results()
-	_show_result_panel("GAME OVER", Color(1.0, 0.3, 0.35))
+	_play_sfx(game_over_sfx)
+	play_boss_voice("game_over")
+	_show_result_panel(title, Color(1.0, 0.3, 0.35))
 
 func _trigger_level_complete() -> void:
 	is_level_complete = true
 	stop_playback()
 	_save_session_results()
+	_play_sfx(victory_sfx)
+	play_boss_voice("victory")
 	_show_result_panel("VICTORY!", Color(0.3, 1.0, 0.55))
 
 func _save_session_results() -> void:
@@ -470,7 +581,7 @@ func _refresh_hud() -> void:
 			segment_title_label.text = "SEGMENT %d" % rec.index
 			var pct := 100
 			if rec.max_score > 0:
-				pct = roundi(float(rec.earned_score) / float(rec.max_score) * 100.0)
+				pct = mini(100, roundi(float(rec.earned_score) / float(rec.max_score) * 100.0))
 			var req_pct := roundi(segment_pass_ratio * 100.0)
 			segment_score_label.text = "%d%% / %d%%" % [pct, req_pct]
 			if pct >= req_pct:
@@ -521,6 +632,15 @@ func _show_status_banner(text: String, col: Color) -> void:
 	_banner_tween.tween_property(status_banner, "modulate:a", 0.0, 0.4)
 
 func _show_result_panel(title_text: String, title_col: Color) -> void:
+	# The Deltarune style end screen (scripts/BattleResultScreen.gd).
+	var screen := get_node_or_null("%ResultScreen")
+	if screen != null and screen.has_method("show_result"):
+		var kind := "victory" if is_level_complete else ("game_over" if title_text == "GAME OVER" else "loss")
+		screen.call("show_result", kind, title_text, {
+			"score": score, "max_combo": max_combo, "accuracy": GameSession.last_accuracy,
+			"hp": hp, "max_hp": max_hp,
+		})
+		return
 	if result_panel == null:
 		return
 	result_panel.visible = true
@@ -553,9 +673,211 @@ func _on_back_pressed() -> void:
 	stop_playback()
 	get_tree().change_scene_to_file(LEVEL_SELECT_SCENE)
 
+# --- sound effects & boss voice -------------------------------------------
+
 func _play_sfx(player: AudioStreamPlayer) -> void:
 	if player != null and player.stream != null:
 		player.play()
+
+## Miss sound, with a short cooldown and a slight random pitch so a run
+## of misses doesn't sound like one sample on repeat.
+func _play_miss_sound() -> void:
+	if miss_sfx == null or miss_sfx.stream == null:
+		return
+	var now := Time.get_ticks_msec()
+	if now - _last_miss_sound_msec < int(miss_sound_cooldown * 1000.0):
+		return
+	_last_miss_sound_msec = now
+	miss_sfx.pitch_scale = randf_range(0.94, 1.06)
+	miss_sfx.play()
+
+## Note click, with a tiny random pitch so fast runs don't sound robotic.
+## The player has room for several at once, so chords and fast notes
+## never cut each other off.
+func _play_hit_sound() -> void:
+	if hit_sfx == null or hit_sfx.stream == null:
+		return
+	hit_sfx.pitch_scale = randf_range(0.97, 1.03)
+	hit_sfx.play()
+
+## Fades the hold loop in on every lane that is holding a note right now
+## and out on the rest. Polled each frame, so drops, releases, game over
+## and leaving the level all stop it without extra hooks.
+func _update_hold_sounds(delta: float) -> void:
+	if _hold_stream == null:
+		return
+	var held := {}
+	if hold_sounds_enabled and playback_active and not is_game_over and not is_level_complete:
+		for note in spawned_notes:
+			if note.get_meta("state", -1) == NoteState.HOLDING:
+				held[int(note.get_meta("lane_index", 0))] = true
+	for lane in held:
+		_hold_player(lane)
+	for lane in range(_hold_players.size()):
+		var player := _hold_players[lane]
+		var target := 1.0 if held.has(lane) else 0.0
+		var fade := HOLD_FADE_IN if target > _hold_gains[lane] else HOLD_FADE_OUT
+		_hold_gains[lane] = move_toward(_hold_gains[lane], target, delta / fade)
+		if _hold_gains[lane] > 0.0:
+			player.volume_db = _hold_base_db + linear_to_db(_hold_gains[lane])
+			if not player.playing:
+				player.play()
+		elif player.playing:
+			player.stop()
+
+## The hold loop player for a lane, made the first time it's needed.
+func _hold_player(lane: int) -> AudioStreamPlayer:
+	while _hold_players.size() <= lane:
+		var idx := _hold_players.size()
+		var player := AudioStreamPlayer.new()
+		player.name = "HoldSFX%d" % idx
+		player.stream = _hold_stream
+		player.pitch_scale = hold_lane_pitches[idx] if idx < hold_lane_pitches.size() else 1.0
+		player.volume_db = -80.0
+		_route_to_bus(player, &"SFX")
+		# Fallback for a file that won't loop: start it again.
+		player.finished.connect(func():
+			if _hold_gains[idx] > 0.0:
+				player.play())
+		var parent := get_node_or_null("SFX")
+		(parent if parent != null else self).add_child(player)
+		_hold_players.append(player)
+		_hold_gains.append(0.0)
+	return _hold_players[lane]
+
+## Turns on looping for a sound file loaded at runtime, so the hold sound
+## can be any .wav / .ogg / .mp3 without touching its import settings.
+func _make_looping(stream: AudioStream) -> void:
+	if stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		if wav.loop_mode == AudioStreamWAV.LOOP_DISABLED:
+			wav.loop_begin = 0
+			wav.loop_end = int(round(wav.get_length() * wav.mix_rate))
+			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	elif stream is AudioStreamOggVorbis or stream is AudioStreamMP3:
+		stream.set("loop", true)
+
+## Plays one of the boss's voice clips for a cue (a file name in
+## voice_folder without its extension or variant number, e.g. "intro" or
+## "jakidding"). Does nothing when the folder has no clip for it, so
+## levels can call this for cues whose audio doesn't exist yet. A new
+## line cuts off the one still playing unless interrupt is false, in
+## which case it's skipped instead. Returns true if a clip started.
+func play_boss_voice(cue: String, interrupt: bool = true) -> bool:
+	if _voice_player == null:
+		return false
+	var clips: Array = _load_voice_cue(cue)
+	if clips.is_empty():
+		return false
+	if _voice_player.playing and not interrupt:
+		return false
+	var clip: AudioStream = clips.pick_random()
+	if clips.size() > 1:
+		while clip == _last_voice_clip.get(cue):
+			clip = clips.pick_random()
+	_last_voice_clip[cue] = clip
+	_voice_player.stream = clip
+	_voice_player.play()
+	return true
+
+## True if voice_folder has at least one clip for this cue.
+func has_boss_voice(cue: String) -> bool:
+	return not _load_voice_cue(cue).is_empty()
+
+func _setup_sound() -> void:
+	hit_sfx = _prepare_sfx(hit_sfx, "hit")
+	miss_sfx = _prepare_sfx(miss_sfx, "miss")
+	countdown_sfx = _prepare_sfx(countdown_sfx, "countdown")
+	countdown_go_sfx = _prepare_sfx(countdown_go_sfx, "countdown_go")
+	segment_pass_sfx = _prepare_sfx(segment_pass_sfx, "segment_pass")
+	segment_fail_sfx = _prepare_sfx(segment_fail_sfx, "segment_fail")
+	victory_sfx = _prepare_sfx(victory_sfx, "victory")
+	game_over_sfx = _prepare_sfx(game_over_sfx, "game_over")
+	hold_end_sfx = _prepare_sfx(get_node_or_null("SFX/HoldEndSFX"), "hold_end")
+	hit_sfx.volume_db += hit_sound_volume_db
+	hit_sfx.max_polyphony = 6
+
+	_countdown_default_stream = countdown_sfx.stream
+	for step in ["3", "2", "1"]:
+		var step_sound: AudioStream = _find_sfx("countdown_" + step)
+		if step_sound != null:
+			_countdown_step_sounds[step] = step_sound
+
+	_hold_stream = _find_sfx("hold")
+	if _hold_stream != null:
+		_make_looping(_hold_stream)
+	_hold_base_db = sfx_volume_db + hold_sound_volume_db
+
+	_voice_player = AudioStreamPlayer.new()
+	_voice_player.name = "BossVoice"
+	_voice_player.volume_db = voice_volume_db
+	_route_to_bus(_voice_player, &"Voice")
+	add_child(_voice_player)
+
+	# Load every clip up front so nothing hitches mid-song.
+	for cue in VOICE_CUES:
+		_load_voice_cue(cue)
+	_voice_events.clear()
+	_next_voice_event = 0
+	for ev in chart_data.get("track_events", []):
+		if has_boss_voice(ev.name):
+			_voice_events.append({"time": ev.time, "name": ev.name})
+
+## Makes sure an SFX player exists (scenes that don't have the node get
+## one), gives it the file from sfx_folder if its stream is empty, and
+## applies the volume.
+func _prepare_sfx(player: AudioStreamPlayer, sound_name: String) -> AudioStreamPlayer:
+	if player == null:
+		player = AudioStreamPlayer.new()
+		player.name = sound_name.to_pascal_case() + "SFX"
+		var parent := get_node_or_null("SFX")
+		(parent if parent != null else self).add_child(player)
+	if player.stream == null and sfx_folder != "":
+		player.stream = _find_sound(sfx_folder, sound_name)
+	player.volume_db += sfx_volume_db
+	_route_to_bus(player, &"SFX")
+	return player
+
+## Sends a player to an audio bus if the project has one by that name
+## (so separate SFX / Voice volume sliders work once the buses exist),
+## else leaves it on Master.
+func _route_to_bus(player: AudioStreamPlayer, bus: StringName) -> void:
+	if AudioServer.get_bus_index(bus) != -1:
+		player.bus = bus
+
+## Plays the voice clip of each chart track event as the song reaches it.
+func _update_voice_events(song_time: float) -> void:
+	while _next_voice_event < _voice_events.size() and song_time >= _voice_events[_next_voice_event].time:
+		play_boss_voice(_voice_events[_next_voice_event].name)
+		_next_voice_event += 1
+
+## The clips for a cue: name.ext plus name_1.ext ... name_9.ext.
+func _load_voice_cue(cue: String) -> Array:
+	if _voice_clips.has(cue):
+		return _voice_clips[cue]
+	var clips: Array = []
+	if voice_folder != "" and cue != "":
+		var single := _find_sound(voice_folder, cue)
+		if single != null:
+			clips.append(single)
+		for i in range(1, MAX_SOUND_VARIANTS + 1):
+			var variant := _find_sound(voice_folder, "%s_%d" % [cue, i])
+			if variant != null:
+				clips.append(variant)
+	_voice_clips[cue] = clips
+	return clips
+
+## A file from sfx_folder by name, or null.
+func _find_sfx(sound_name: String) -> AudioStream:
+	return _find_sound(sfx_folder, sound_name) if sfx_folder != "" else null
+
+## The sound file called sound_name in a folder, whatever its format.
+func _find_sound(folder: String, sound_name: String) -> AudioStream:
+	for ext in SOUND_EXTENSIONS:
+		var path := "%s/%s.%s" % [folder.trim_suffix("/"), sound_name, ext]
+		if ResourceLoader.exists(path):
+			return load(path) as AudioStream
+	return null
 
 # --- virtual hooks for subclasses -----------------------------------------
 
@@ -572,6 +894,15 @@ func _on_segment_evaluated(_segment_index: int, _passed: bool) -> void:
 func _on_boss_damaged() -> void:
 	pass
 
-## Called when the player fails a segment and loses 1 HP.
+## Called whenever the player loses HP (see damage_player()).
 func _on_player_damaged() -> void:
 	pass
+
+## What a failed segment costs, called right after its sound and voice
+## cue. By default the boss attacks and the player loses 1 HP. Override
+## it for a level with a penalty of its own (Level 1 fills a MERCY meter
+## instead); such a level ends the run with _trigger_game_over().
+func _punish_failed_segment(segment_index: int) -> void:
+	play_boss_animation(&"attack")
+	_show_status_banner("SEGMENT %d FAILED! -1 HP" % segment_index, Color(1.0, 0.3, 0.35))
+	damage_player(1)

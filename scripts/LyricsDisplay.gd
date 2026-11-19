@@ -1,10 +1,11 @@
 class_name LyricsDisplay
 extends Control
 ## Karaoke-style lyrics for levels whose chart has lyric events (see
-## ChartParser's "lyrics"). One sung line at a time is centered in this
-## control: syllables start white and turn yellow the moment they're
-## sung, with a small hop. Lines in chorus sections also pulse on every
-## beat, like the lyrics in Deltarune's Flowery battle.
+## ChartParser's "lyrics"), styled like Deltarune's Flowery battle.
+## One sung line at a time is centered in this control. Its letters start
+## yellow and turn green, left to right, as each syllable is sung.
+## Lines in chorus sections use brighter colors and a jittering
+## horizontal smear (echo copies of the line on both sides).
 ##
 ## Song time and chart data are read from the ChartPlayer this node
 ## belongs to (the level root), so no level script has to feed it.
@@ -16,14 +17,18 @@ extends Control
 @export_group("Look")
 ## The pixel font looks crispest at multiples of 8.
 @export var font_size: int = 32
-@export var unsung_color: Color = Color(0.961, 0.941, 1.0)
-@export var sung_color: Color = Color(1.0, 0.86, 0.0)
-@export var outline_color: Color = Color(0.051, 0.027, 0.129)
-@export var outline_size: int = 8
+## Verse (non-chorus) lines: dim olive yellow, turning pale green when sung.
+@export var unsung_color: Color = Color8(204, 200, 48)
+@export var sung_color: Color = Color8(144, 196, 120)
+@export var outline_color: Color = Color(0.0, 0.0, 0.0)
+@export var outline_size: int = 6
+## Seconds the green takes to sweep across one syllable's letters
+## (shorter if the next syllable comes sooner).
+@export var fill_time: float = 0.25
 ## Also show the upcoming line, smaller and dimmer, under the current one.
 @export var show_next_line: bool = false
 @export var next_line_font_size: int = 24
-@export var next_line_color: Color = Color(0.961, 0.941, 1.0, 0.45)
+@export var next_line_color: Color = Color(0.72, 0.71, 0.16, 0.45)
 
 @export_group("Timing")
 ## Seconds a line appears before its first syllable is sung.
@@ -31,18 +36,41 @@ extends Control
 ## Seconds a line stays up after its last syllable ends.
 @export var linger: float = 0.6
 @export var fade_time: float = 0.15
-## Duration (seconds) and height (pixels) of the hop a syllable does when sung.
-@export var hop_time: float = 0.14
+## Duration (seconds) and height (pixels) of a hop a syllable does when
+## sung. 0 = no hop (Deltarune's lyrics don't hop).
+@export var hop_time: float = 0.0
 @export var hop_height: float = 6.0
 
-@export_group("Chorus pulse")
-## Lines in a chart section whose name contains this (any case) pulse
-## on every beat. Leave empty to turn the pulse off.
-@export var pulse_section_keyword: String = "chorus"
-## Extra scale at the start of each beat while pulsing.
-@export var pulse_amount: float = 0.08
+@export_group("Chorus")
+## Lines in a chart section whose name contains this (any case) use the
+## chorus look. Leave empty to draw every line in the verse look.
+@export var chorus_section_keyword: String = "chorus"
+@export var chorus_unsung_color: Color = Color8(244, 240, 40)
+@export var chorus_sung_color: Color = Color8(104, 236, 104)
+## White rim drawn round the letters once they're sung (Deltarune's
+## chorus text is green with a white edge). 0 = no rim.
+@export var chorus_rim_color: Color = Color(0.94, 1.0, 0.94)
+@export var chorus_rim_size: int = 6
+## Soft pale glow around the sung chorus text.
+@export var chorus_glow_color: Color = Color(0.85, 1.0, 0.85, 0.35)
+@export var chorus_glow_size: int = 14
+## How far the sung part of the smear is tinted toward white (0..1).
+@export var smear_sung_whiten: float = 0.45
+## Echo copies drawn on each side of a chorus line.
+@export var smear_count: int = 10
+## Pixels between echoes, and how far each one jitters.
+@export var smear_spacing: float = 14.0
+@export var smear_jitter: float = 6.0
+## Alpha of the nearest echo (further ones fade out).
+@export var smear_alpha: float = 0.5
+## How much darker than the text the echoes are.
+@export var smear_darken: float = 0.45
+## Times per second the smear jitters.
+@export var smear_rate: float = 12.0
+## Extra scale on each beat for chorus lines (0 = off).
+@export var pulse_amount: float = 0.0
 
-## ChartParser lyric lines, plus "show_at" / "hide_at" / "pulse".
+## ChartParser lyric lines, plus "show_at" / "hide_at" / "chorus".
 var _lines: Array = []
 var _tempo_events: Array = []
 var _resolution: int = 192
@@ -72,7 +100,7 @@ func _build(chart_data: Dictionary) -> void:
 	_built = true
 	_tempo_events = chart_data.get("tempo_events", [])
 	_resolution = chart_data.get("resolution", 192)
-	var keyword := pulse_section_keyword.to_lower()
+	var keyword := chorus_section_keyword.to_lower()
 	var raw: Array = chart_data.get("lyrics", [])
 	for i in range(raw.size()):
 		var line: Dictionary = raw[i].duplicate()
@@ -83,7 +111,7 @@ func _build(chart_data: Dictionary) -> void:
 			var prev_last: float = raw[i - 1].syllables.back().time
 			show_at = maxf(show_at, prev_last + minf(0.25, (line.start - prev_last) * 0.5))
 		line["show_at"] = show_at
-		line["pulse"] = keyword != "" and String(line.get("section", "")).to_lower().contains(keyword)
+		line["chorus"] = keyword != "" and String(line.get("section", "")).to_lower().contains(keyword)
 		_lines.append(line)
 	for i in range(_lines.size()):
 		var hide_at: float = _lines[i].end + linger
@@ -107,24 +135,84 @@ func _draw() -> void:
 	var fade_in := clampf((t - line.show_at) / maxf(fade_time, 0.001), 0.0, 1.0)
 	var fade_out := clampf((line.hide_at - t) / maxf(fade_time, 0.001), 0.0, 1.0)
 	var alpha := fade_in * fade_out
-	var pulse := _beat_pulse(t) if line.pulse else 0.0
+	var chorus: bool = line.chorus
+	var pulse := _beat_pulse(t) if chorus and pulse_amount > 0.0 else 0.0
 
 	# Lines rise a few pixels into place as they fade in.
-	var baseline := roundf(font_size + outline_size + (1.0 - fade_in) * 6.0)
+	var baseline := roundf(font_size + outline_size + (1.0 - fade_in) * 4.0)
 	var line_scale := 1.0 + pulse_amount * pulse
 	draw_set_transform(Vector2(roundf(size.x / 2.0), baseline), 0.0, Vector2(line_scale, line_scale))
-	_draw_line(line, t, font_size, alpha, pulse, true)
+	var cols := _line_colors(chorus)
+	if chorus and smear_count > 0:
+		_draw_smear(line, t, font_size, alpha, cols)
+	var outline := outline_color
+	outline.a *= alpha
+	var none := Color.TRANSPARENT
+	var rim := chorus_rim_size if chorus else 0
+	if chorus and chorus_glow_size > 0:
+		# Pale haze round the sung letters only.
+		var glow := chorus_glow_color
+		glow.a *= alpha
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], outline_size + rim + chorus_glow_size, [none, glow])
+	if rim > 0:
+		# Dark edge outside the white rim, then the rim itself (sung letters).
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], outline_size, [outline, none])
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], outline_size + rim, [none, outline])
+		var rim_col := chorus_rim_color
+		rim_col.a *= alpha
+		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], rim, [none, rim_col])
+		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), 0, [none, none])
+	else:
+		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), outline_size, [outline, outline])
 
 	if show_next_line and _line_index + 1 < _lines.size():
 		var next_baseline := baseline + roundf(font_size * 0.6 + next_line_font_size + outline_size)
 		draw_set_transform(Vector2(roundf(size.x / 2.0), next_baseline), 0.0, Vector2.ONE)
-		_draw_line(_lines[_line_index + 1], t, next_line_font_size, alpha, 0.0, false)
+		var nc := next_line_color
+		nc.a *= alpha
+		_draw_line(_lines[_line_index + 1], -INF, next_line_font_size, Vector2.ZERO, [nc, nc], outline_size, [outline, outline])
 
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 
+## [unsung, sung] colors for a line.
+func _line_colors(chorus: bool) -> Array:
+	if chorus:
+		return [chorus_unsung_color, chorus_sung_color]
+	return [unsung_color, sung_color]
+
+func _faded(cols: Array, alpha: float) -> Array:
+	var out := []
+	for c in cols:
+		var faded: Color = c
+		faded.a *= alpha
+		out.append(faded)
+	return out
+
+## Darker echo copies of the line trailing out on both sides. Their
+## offsets jump a few times a second, like a glitchy video smear.
+func _draw_smear(line: Dictionary, t: float, fs: int, alpha: float, cols: Array) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(int(floorf(t * smear_rate)))
+	for i in range(smear_count, 0, -1):
+		var fade := smear_alpha * (1.0 - float(i - 1) / float(smear_count)) * alpha
+		var echo_cols := []
+		for k in range(cols.size()):
+			var c: Color = cols[k]
+			if k == 1:
+				c = c.lerp(Color.WHITE, smear_sung_whiten)
+			var e: Color = c.darkened(smear_darken)
+			e.a = fade
+			echo_cols.append(e)
+		for side in [-1.0, 1.0]:
+			var dx: float = side * (i * smear_spacing + rng.randf_range(-smear_jitter, smear_jitter))
+			_draw_line(line, t, fs, Vector2(roundf(dx), 0.0), echo_cols, 0, [Color.TRANSPARENT, Color.TRANSPARENT])
+
 ## Draws one line centered on x = 0 with its baseline at y = 0 (the
-## caller positions it with draw_set_transform).
-func _draw_line(line: Dictionary, t: float, fs: int, alpha: float, pulse: float, is_current: bool) -> void:
+## caller positions it with draw_set_transform), shifted by offset.
+## cols and outlines are [unsung, sung]; letters turn sung left to right
+## while each syllable is sung. A fully transparent color skips that
+## part, and outline_px 0 draws no outline.
+func _draw_line(line: Dictionary, t: float, fs: int, offset: Vector2, cols: Array, outline_px: int, outlines: Array) -> void:
 	var syllables: Array = line.syllables
 	var widths: Array[float] = []
 	var total := 0.0
@@ -133,28 +221,49 @@ func _draw_line(line: Dictionary, t: float, fs: int, alpha: float, pulse: float,
 		widths.append(w)
 		total += w
 
-	var outline := outline_color
-	outline.a *= alpha
-	var x := roundf(-total / 2.0)
+	var x := roundf(-total / 2.0) + offset.x
 	for i in range(syllables.size()):
 		var syl: Dictionary = syllables[i]
-		var col := next_line_color
+		var text: String = syl.text
 		var hop := 0.0
-		if is_current:
-			var sung: bool = t >= syl.time
-			col = sung_color if sung else unsung_color
-			if sung and hop_time > 0.0:
-				var k: float = (t - syl.time) / hop_time
-				if k < 1.0:
-					hop = roundf(hop_height * sin(PI * k))
-			# Chorus beats flash the text a little brighter.
-			col = col.lerp(Color.WHITE, 0.35 * pulse)
-		col.a *= alpha
-		var pos := Vector2(x, -hop)
-		if outline_size > 0:
-			draw_string_outline(_font, pos, syl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, outline_size, outline)
-		draw_string(_font, pos, syl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		if hop_time > 0.0 and t >= syl.time:
+			var k: float = (t - syl.time) / hop_time
+			if k < 1.0:
+				hop = roundf(hop_height * sin(PI * k))
+		var pos := Vector2(x, offset.y - hop)
+		var sung_chars := clampi(_sung_chars(syllables, i, t), 0, text.length())
+		var head := text.substr(0, sung_chars)
+		var tail := text.substr(sung_chars)
+		var head_w := _font.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x if head != "" else 0.0
+		_draw_part(head, pos, fs, cols[1], outline_px, outlines[1])
+		_draw_part(tail, pos + Vector2(head_w, 0.0), fs, cols[0], outline_px, outlines[0])
 		x += widths[i]
+
+func _draw_part(text: String, pos: Vector2, fs: int, col: Color, outline_px: int, outline: Color) -> void:
+	if text == "":
+		return
+	if outline_px > 0 and outline.a > 0.0:
+		draw_string_outline(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, outline_px, outline)
+	if col.a > 0.0:
+		draw_string(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+## How many letters of syllable i are green at time t: the sweep starts
+## when it's sung and takes fill_time (or until the next syllable).
+func _sung_chars(syllables: Array, i: int, t: float) -> int:
+	var syl: Dictionary = syllables[i]
+	var text: String = syl.text
+	if t < syl.time:
+		return 0
+	var dur := fill_time
+	if i + 1 < syllables.size():
+		dur = minf(dur, syllables[i + 1].time - syl.time)
+	if dur <= 0.0:
+		return text.length()
+	# Spaces don't count as letters to sweep through.
+	var letters := text.strip_edges().length()
+	var lead := text.length() - text.strip_edges(true, false).length()
+	var n := ceili(clampf((t - syl.time) / dur, 0.0, 1.0) * letters)
+	return text.length() if n >= letters else lead + n
 
 ## 1 right on each beat, easing down to 0 before the next one.
 func _beat_pulse(t: float) -> float:

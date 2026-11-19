@@ -19,7 +19,20 @@ const LEVEL_CARD_SCENE := preload("res://scenes/LevelCard.tscn")
 @onready var back_button: Button = %BackButton
 @onready var empty_label: Label = %EmptyLabel
 
+## Plays the highlighted level's song clip (see LevelData's "Level
+## select preview" settings).
+var preview: Node
+
+const PREVIEW_PLAYER_SCRIPT := preload("res://scripts/LevelPreviewPlayer.gd")
+
+## Set once a level or BACK is picked, so input during the fade out
+## doesn't start a second scene change.
+var _leaving := false
+
 func _ready() -> void:
+	preview = PREVIEW_PLAYER_SCRIPT.new()
+	preview.name = "PreviewPlayer"
+	add_child(preview)
 	back_button.pressed.connect(_on_back_pressed)
 	_build_list()
 
@@ -36,12 +49,16 @@ func _build_list() -> void:
 		level_list.add_child(card)
 		card.setup(level)
 		card.level_chosen.connect(_on_level_chosen)
+		card.highlighted.connect(_on_level_highlighted)
 		if first_card == null and level.unlocked:
 			first_card = card
 
 	# So the list is usable with a keyboard or controller straight away.
 	if first_card != null:
 		first_card.grab_focus()
+		# grab_focus() before the first frame doesn't always emit
+		# focus_entered, so start the first preview directly.
+		_on_level_highlighted(first_card.level)
 
 func _load_levels() -> Array[LevelData]:
 	var result: Array[LevelData] = []
@@ -60,11 +77,24 @@ func _on_level_chosen(level: LevelData, difficulty: DifficultyOption) -> void:
 	if level.level_scene == null:
 		push_warning("LevelSelect: %s has no level_scene set" % level.title)
 		return
+	if _leaving:
+		return
+	_leaving = true
 	GameSession.start(level, difficulty)
+	await preview.fade_out(0.35)
 	get_tree().change_scene_to_packed(level.level_scene)
 
 func _on_back_pressed() -> void:
+	if _leaving:
+		return
+	_leaving = true
+	await preview.fade_out(0.3)
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+
+func _on_level_highlighted(level: LevelData) -> void:
+	if _leaving:
+		return
+	preview.play_level(level if level != null and level.unlocked else null)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"ui_cancel"):

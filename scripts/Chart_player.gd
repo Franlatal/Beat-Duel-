@@ -19,6 +19,11 @@ extends Node2D
 ## Every judgement is emitted through note_judged, so scoring / HP can
 ## hook in without touching this script.
 ##
+## Note skins: a level can swap the default look (note1-4.png circles,
+## plain hold bars, circles on the hit line) for its own pixel art by
+## calling set_note_skin() with a NoteSkin resource (see NoteSkin.gd).
+## Only the visuals change; timing and judging stay the same.
+##
 ## Attach this script to the root of each level's scene, then set
 ## chart_path / audio_path (and track_name, if a level uses a
 ## non-Expert difficulty) in the Inspector — each level just points at
@@ -103,6 +108,10 @@ var upcoming_notes: Array = []
 var spawned_notes: Array = []
 ## Latest song time, cached for _draw().
 var _song_time: float = 0.0
+## Hit time (song seconds) of the note behind the judgement being emitted
+## right now through note_judged, NAN if there isn't one. Lets a level
+## score a judgement by the note's own time, not the moment it was judged.
+var judged_note_time: float = NAN
 
 # --- pre-roll silence (from a negative Offset) ----------------------------
 var start_delay: float = 0.0
@@ -117,6 +126,16 @@ var current_segment_index: int = -1
 
 # --- floating feedback labels ---------------------------------------------
 var _feedback_nodes: Array[Node] = []
+
+# --- note skin (optional, see NoteSkin.gd) ----------------------------------
+## The level's custom note look, null for the default one. Set it with
+## set_note_skin().
+var note_skin: NoteSkin = null
+## Draws the skin's hold tails and hit line receptors: under the note
+## sprites, over the lane stripes, with nearest filtering.
+var _skin_layer: Node2D
+## Running hit bursts: [{sprite, age}].
+var _hit_bursts: Array = []
 
 func _ready() -> void:
 	# Load note textures
@@ -133,6 +152,7 @@ func _ready() -> void:
 	if chart_data.is_empty():
 		push_error("Chart failed to parse — check chart_path/track_name.")
 		return
+	_prepare_chart()
 	upcoming_notes = chart_data.notes.duplicate()
 	segments = chart_data.get("segments", []).duplicate()
 	var lead_time := _spawn_lead_time()
@@ -147,6 +167,11 @@ func _ready() -> void:
 
 	if autostart:
 		start_playback()
+
+## Called once right after the chart is parsed, before any note is
+## queued. Override to change chart_data (notes, track_events) for a level.
+func _prepare_chart() -> void:
+	pass
 
 func start_playback() -> void:
 	if chart_data.is_empty() or playback_active:
@@ -167,6 +192,7 @@ func _process(delta: float) -> void:
 
 	if not playback_active:
 		_update_feedback_labels(delta)
+		_update_hit_bursts(delta)
 		queue_redraw()
 		return
 
@@ -196,8 +222,11 @@ func _process(delta: float) -> void:
 
 	# Update floating feedback labels
 	_update_feedback_labels(delta)
+	_update_hit_bursts(delta)
 
 	queue_redraw()
+	if _skin_layer != null:
+		_skin_layer.queue_redraw()
 
 func _update_gameplay(song_time: float, delta: float) -> void:
 	var lead_time := _spawn_lead_time()
@@ -219,6 +248,7 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 				note.position.y = _time_to_y(hit_time, song_time)
 				# Auto-miss: note has passed beyond the miss window
 				if song_time > hit_time + MISS_WINDOW:
+					judged_note_time = hit_time
 					_on_note_result("Miss", lane)
 					if is_hold:
 						_drop_hold(note, false, song_time)
@@ -228,6 +258,7 @@ func _update_gameplay(song_time: float, delta: float) -> void:
 			NoteState.HOLDING:
 				# Head stays pinned to the hit line while the tail drains into it.
 				note.position.y = hit_line_y
+				judged_note_time = hit_time
 				if song_time >= end_time:
 					to_remove.append(note)
 					_on_note_result("Held", lane)
@@ -277,8 +308,9 @@ func _draw() -> void:
 			draw_rect(rect, flash_col)
 
 	# Hold-note tails (drawn here so the head sprites, being children,
-	# render on top of them)
-	_draw_hold_tails()
+	# render on top of them). A note skin draws its own on _skin_layer.
+	if note_skin == null:
+		_draw_hold_tails()
 
 	# Draw hit line
 	if not lane_positions.is_empty():
@@ -287,7 +319,8 @@ func _draw() -> void:
 		draw_line(Vector2(left_x, hit_line_y), Vector2(right_x, hit_line_y), Color(1, 1, 1, 0.7), 3.0)
 
 		# Small marker circles on the hit line at each lane position
-		for i in range(lane_positions.size()):
+		# (a note skin draws receptors instead)
+		for i in range(lane_positions.size() if note_skin == null else 0):
 			var solid_col: Color = LANE_COLORS_SOLID[i % LANE_COLORS_SOLID.size()]
 			solid_col.a = 0.5
 			draw_circle(Vector2(lane_positions[i], hit_line_y), 18.0, solid_col)
@@ -401,6 +434,7 @@ func _try_hit_lane(lane_index: int) -> void:
 		spawned_notes.erase(best_note)
 		best_note.queue_free()
 
+	judged_note_time = best_note.get_meta("hit_time")
 	_on_note_result(result, lane_index)
 
 ## Turns a hold note into a dead, greyed-out tail that just scrolls away.
@@ -423,8 +457,11 @@ func _on_note_result(result: String, lane_index: int) -> void:
 
 	# Floating label
 	_spawn_feedback_label(result, lane_index)
+	if note_skin != null and (result == "Perfect" or result == "Good" or result == "Held"):
+		_spawn_hit_burst(lane_index)
 
 	note_judged.emit(result, lane_index)
+	judged_note_time = NAN
 
 func _result_color(result: String) -> Color:
 	match result:
@@ -488,6 +525,135 @@ func _update_segments(song_time: float) -> void:
 func _on_segment_changed(index: int) -> void:
 	pass
 
+# --- note skin --------------------------------------------------------------
+
+## Switches this player's notes, hold tails, hit line targets and hit
+## effect to a NoteSkin (null = back to the default look). Notes already
+## on screen keep their sprite; call it before playback starts.
+func set_note_skin(skin: NoteSkin) -> void:
+	note_skin = skin
+	if skin == null:
+		if _skin_layer != null:
+			_skin_layer.queue_free()
+			_skin_layer = null
+		return
+	if _skin_layer == null:
+		_skin_layer = Node2D.new()
+		_skin_layer.name = "NoteSkinLayer"
+		_skin_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(_skin_layer)
+		# First child: drawn right after this node's lanes, before the notes.
+		move_child(_skin_layer, 0)
+		_skin_layer.draw.connect(_draw_note_skin)
+	queue_redraw()
+
+func _draw_note_skin() -> void:
+	if note_skin == null:
+		return
+	_draw_skin_receptors()
+	_draw_skin_tails()
+
+func _draw_skin_receptors() -> void:
+	var s := float(note_skin.pixel_scale)
+	for i in range(lane_positions.size()):
+		var pressed := playback_active and InputMap.has_action(_action_for_lane(i)) \
+				and Input.is_action_pressed(_action_for_lane(i))
+		var tex := NoteSkin.pick(note_skin.receptor_textures, i)
+		var b := note_skin.receptor_idle_brightness
+		if pressed:
+			var pressed_tex := NoteSkin.pick(note_skin.receptor_pressed_textures, i)
+			if pressed_tex != null:
+				tex = pressed_tex
+			else:
+				b = note_skin.receptor_pressed_brightness
+		if tex == null:
+			continue
+		var size := tex.get_size() * s
+		var pos := Vector2(roundf(lane_positions[i] - size.x / 2.0), roundf(hit_line_y - size.y / 2.0))
+		_skin_layer.draw_texture_rect(tex, Rect2(pos, size), false, Color(b, b, b))
+
+func _draw_skin_tails() -> void:
+	var s := float(note_skin.pixel_scale)
+	for note in spawned_notes:
+		if not note.get_meta("is_hold"):
+			continue
+		var lane: int = note.get_meta("lane_index")
+		var state: int = note.get_meta("state")
+		var bottom_y: float
+		match state:
+			NoteState.PENDING:
+				bottom_y = _time_to_y(note.get_meta("hit_time"), _song_time)
+			NoteState.HOLDING:
+				bottom_y = hit_line_y
+			_:
+				bottom_y = _time_to_y(note.get_meta("tail_start"), _song_time)
+		var top_y: float = roundf(_time_to_y(note.get_meta("end_time"), _song_time))
+		bottom_y = roundf(bottom_y)
+		if bottom_y <= top_y:
+			continue
+		var dead: bool = state == NoteState.DROPPED or note.get_meta("greyed", false)
+		var body := note_skin.dead_tail_texture if dead else NoteSkin.pick(note_skin.tail_textures, lane)
+		var cap := note_skin.dead_tail_end_texture if dead else NoteSkin.pick(note_skin.tail_end_textures, lane)
+		if body == null:
+			continue
+		var b := note_skin.holding_brightness if state == NoteState.HOLDING else 1.0
+		var tint := Color(b, b, b)
+		var x: float = lane_positions[lane]
+		var y := top_y
+		# Cap at the far end: the tail's own top, inside its length.
+		if cap != null:
+			var cap_h := cap.get_size().y * s
+			_draw_tail_piece(cap, x, y, minf(cap_h, bottom_y - y), s, tint)
+			y += cap_h
+		# Body tiles downwards from the cap. The pattern is pinned to the
+		# tail's top end, so the vine scrolls with the note (and keeps
+		# sliding into the flower while it's held).
+		var tile_h := body.get_size().y * s
+		while y < bottom_y:
+			var h := minf(tile_h, bottom_y - y)
+			_draw_tail_piece(body, x, y, h, s, tint)
+			y += tile_h
+
+## Draws the top `height` screen pixels of tex, centred on x, from y down.
+func _draw_tail_piece(tex: Texture2D, x: float, y: float, height: float, s: float, tint: Color) -> void:
+	var tex_size := tex.get_size()
+	var src_h := height / s
+	if src_h <= 0.0:
+		return
+	var w := tex_size.x * s
+	var dest := Rect2(roundf(x - w / 2.0), y, w, src_h * s)
+	_skin_layer.draw_texture_rect_region(tex, dest, Rect2(0, 0, tex_size.x, src_h), tint)
+
+func _spawn_hit_burst(lane_index: int) -> void:
+	var tex := NoteSkin.pick(note_skin.burst_textures, lane_index)
+	if tex == null or lane_index >= lane_positions.size():
+		return
+	var burst := Sprite2D.new()
+	burst.texture = tex
+	burst.hframes = maxi(note_skin.burst_frames, 1)
+	burst.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	burst.scale = Vector2.ONE * note_skin.pixel_scale
+	burst.position = Vector2(lane_positions[lane_index], hit_line_y)
+	burst.z_index = 5   # over the notes
+	add_child(burst)
+	_hit_bursts.append({"sprite": burst, "age": 0.0})
+
+func _update_hit_bursts(delta: float) -> void:
+	if _hit_bursts.is_empty():
+		return
+	var frame_time := maxf(note_skin.burst_frame_time if note_skin != null else 0.045, 0.001)
+	var keep: Array = []
+	for b in _hit_bursts:
+		var sprite: Sprite2D = b.sprite
+		b.age += delta
+		var frame := int(b.age / frame_time)
+		if frame >= sprite.hframes:
+			sprite.queue_free()
+		else:
+			sprite.frame = frame
+			keep.append(b)
+	_hit_bursts = keep
+
 # --- helpers --------------------------------------------------------------
 
 ## Time (seconds) it takes a note to travel from off-screen above the top edge
@@ -518,8 +684,14 @@ func _spawn_note(note_data: Dictionary, current_time: float = -INF) -> void:
 	var tex_index: int = note_data.lane % _note_textures_loaded.size()
 	var note := Sprite2D.new()
 	note.texture = _note_textures_loaded[tex_index]
-	# Scale sprite to fit nicely within the lane
-	if note.texture != null:
+	var skin_tex := NoteSkin.pick(note_skin.note_textures, note_data.lane) if note_skin != null else null
+	if skin_tex != null:
+		# Pixel art: whole-number scale, no smoothing.
+		note.texture = skin_tex
+		note.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		note.scale = Vector2.ONE * note_skin.pixel_scale
+	elif note.texture != null:
+		# Scale sprite to fit nicely within the lane
 		var tex_size: Vector2 = note.texture.get_size()
 		var desired_width: float = LANE_WIDTH * 0.7
 		var scale_factor: float = desired_width / max(tex_size.x, 1.0)

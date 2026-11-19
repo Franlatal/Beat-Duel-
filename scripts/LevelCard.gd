@@ -6,6 +6,9 @@ extends Button
 ## Instantiate it, add it to the tree, then call setup() with a LevelData.
 
 signal level_chosen(level: LevelData, difficulty: DifficultyOption)
+## Emitted when the card (or one of its difficulty chips) gets keyboard
+## focus or the mouse moves onto it. LevelSelect plays the preview.
+signal highlighted(level: LevelData)
 
 const CHIP_SCENE := preload("res://scenes/DifficultyChip.tscn")
 
@@ -21,6 +24,8 @@ var _chip_group: ButtonGroup
 
 func _ready() -> void:
 	pressed.connect(_on_pressed)
+	focus_entered.connect(_on_highlight)
+	mouse_entered.connect(_on_highlight)
 	#mouse_entered.connect(_on_hover)
 	#mouse_exited.connect(_on_unhover)
 	pivot_offset = size / 2.0
@@ -62,9 +67,15 @@ func _build_chips() -> void:
 		chip.disabled = not level.unlocked
 		chip.button_pressed = option == selected_difficulty
 		chip.pressed.connect(_on_chip_pressed.bind(option))
+		chip.focus_entered.connect(_on_highlight)
+		chip.mouse_entered.connect(_on_highlight)
 
 func _on_chip_pressed(option: DifficultyOption) -> void:
 	selected_difficulty = option
+
+func _on_highlight() -> void:
+	if level != null:
+		highlighted.emit(level)
 
 func _on_pressed() -> void:
 	if level != null:
