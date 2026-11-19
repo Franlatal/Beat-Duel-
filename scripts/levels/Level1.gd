@@ -2,9 +2,9 @@ extends LevelBase
 ## Level 1 (Flower Man).
 ##
 ## Exclusive event "jarona": every "E jarona" in the played chart track
-## is an attack that lands exactly on the event's tick. The boss leaves
-## his spot, waits beside the note highway for jarona_windup_beats, then
-## dashes sideways (across the lanes, not down them) into the highway,
+## is an attack that lands exactly on the event's tick. The boss winds
+## up on his own spot for jarona_windup_beats, then dashes straight from
+## there (across the lanes, not down them) into the highway,
 ## hitting it at the edge of the rightmost lane, the one closest to him.
 ## Press the parry key (Z by default, rebindable in Options > Controls)
 ## as he lands to block it. Letting it land, or pressing during the dash
@@ -25,7 +25,9 @@ extends LevelBase
 ## ("crouch") beside the highway for the windup, turns bright blue for the
 ## dash in a random one of "jarona_punch" / "jarona_fair" and leaves a
 ## thick blue trail behind him. One of jarona_sounds, picked at random,
-## plays as the dash starts.
+## plays as the dash starts and always plays to the end: while he's still
+## saying it, the parry / hit sound is played quieter (jarona_voice_duck_db)
+## so it doesn't drown out the end of the line.
 ##
 ## Parry: a white flash and a thin white slash where he struck, two grey
 ## rings spreading from it, and he's knocked back in his "deflected" pose,
@@ -53,6 +55,11 @@ extends LevelBase
 ## note highway, petals falling over both) is set up in Level1.tscn
 ## under BackgroundLayer: Sunset, Vine and Petals.
 ##
+## Notes: flower_notes (resources/note_skins/flowery_notes.tres) gives this
+## level its own notes, one flower per lane in the usual lane colours
+## (red, yellow, green, cyan), vine hold tails, hollow flower targets on
+## the hit line and a petal burst on hits. Clear it to get the default notes.
+##
 ## Sounds: voice clips come from LevelBase.voice_folder (res://sounds/flowery,
 ## see its README.txt); this level adds the cues "jakidding", "prism_blow"
 ## (said as he starts the Prism Blow) and "spared" (the full MERCY ending,
@@ -75,6 +82,9 @@ const LEVEL_SOUND_FOLDER := "res://sounds/level1"
 enum AttackState { WAITING, WINDUP, PARRIED, HIT, DONE }
 enum FakeState { WAITING, WINDUP, STAND, RETURN, DONE }
 
+## This level's note look (see NoteSkin.gd). Empty = the default notes.
+@export var flower_notes: NoteSkin = preload("res://resources/note_skins/flowery_notes.tres")
+
 @export_group("Jarona attack")
 ## How long the windup lasts before the attack lands, in beats.
 @export_range(1.0, 8.0, 0.5) var jarona_windup_beats: float = 3.0
@@ -93,6 +103,10 @@ enum FakeState { WAITING, WINDUP, STAND, RETURN, DONE }
 @export_range(-40.0, 12.0, 0.5) var jarona_sounds_volume_db: float = 0.0
 @export_range(-40.0, 12.0, 0.5) var parry_sound_volume_db: float = 0.0
 @export_range(-40.0, 12.0, 0.5) var hurt_sound_volume_db: float = 0.0
+## While his jarona shout is still playing, the parry and hit sounds are
+## this many decibels quieter, so the end of the line stays audible.
+## 0 = no ducking.
+@export_range(-30.0, 0.0, 0.5) var jarona_voice_duck_db: float = -9.0
 ## Notes are removed from this many beats before the attack lands until this
 ## many beats after the attack lands.
 @export_range(0.0, 4.0, 0.25) var clear_notes_before_hit_beats: float = 0.5
@@ -119,10 +133,6 @@ enum FakeState { WAITING, WINDUP, STAND, RETURN, DONE }
 @export_range(0.0, 40.0, 1.0) var hit_shake_strength: float = 14.0
 @export_range(0.0, 1.0, 0.05) var hit_shake_time: float = 0.3
 
-## How far left of the boss's center he waits for his dash.
-const LAUNCH_OFFSET_FROM_BOSS := 260.0
-## Seconds the boss takes to move from his spot to that point.
-const EMERGE_TIME := 0.25
 ## Seconds the parry / hit reaction lasts after an attack resolves.
 const AFTERMATH_TIME := 0.6
 const ATTACK_COLOR := Color(1.0, 0.2, 0.3)
@@ -138,6 +148,11 @@ const TINT_OUT_TIME := 0.08
 ## Orange outline round the highway on every parry press.
 const PARRY_PRESS_COLOR := Color(1.0, 0.55, 0.1)
 const PARRY_PRESS_TIME := 0.35
+## Where the "PRESS Z TO PARRY" hint sits, from Flower Man's center
+## (just under his feet).
+## Top-right corner of the parry hint box, from Flower Man's position:
+## to his left, about level with his head.
+const PARRY_HINT_OFFSET := Vector2(-190, -20)
 ## Seconds kept clear around a segment being graded when deciding
 ## whether a jarona would overlap it.
 const SEGMENT_GRADE_MARGIN := 0.4
@@ -221,6 +236,8 @@ var _afterimages: Array = []
 var _parry_fx: Array = []
 var _prism: PrismBlow
 var _snd_mercy_up: AudioStream
+## Player of the jarona shout that's playing (freed when it finishes).
+var _jarona_voice: AudioStreamPlayer
 ## MERCY value waiting for the Prism Blow burst to show it.
 var _pending_mercy := 0.0
 ## True once MERCY is full; the run ends at the burst.
@@ -243,6 +260,8 @@ var _boss_sprite_rest := Vector2.ZERO
 var _boss_shake_tween: Tween
 
 func _setup_level() -> void:
+	if flower_notes != null:
+		set_note_skin(flower_notes)
 	_attack_layer = Node2D.new()
 	_attack_layer.name = "JaronaLayer"
 	_attack_layer.z_index = 10   # above notes
@@ -470,19 +489,27 @@ func _make_attack_sprite() -> AnimatedSprite2D:
 func _play_jarona_sound() -> void:
 	if jarona_sounds.is_empty():
 		return
-	_play_one_shot(jarona_sounds.pick_random(), jarona_sounds_volume_db)
+	_jarona_voice = _play_one_shot(jarona_sounds.pick_random(), jarona_sounds_volume_db)
+
+## Extra volume for a sound that lands on top of the jarona shout: quieter
+## while the shout is still playing, so the line is heard to the end.
+func _duck_under_jarona_voice() -> float:
+	if _jarona_voice != null and is_instance_valid(_jarona_voice) and _jarona_voice.playing:
+		return jarona_voice_duck_db
+	return 0.0
 
 ## Plays a sound on its own one-shot player, so no other attack sound
 ## (or the next attack's) ever cuts it off. Does nothing for null.
-func _play_one_shot(stream: AudioStream, volume_db: float = 0.0) -> void:
+func _play_one_shot(stream: AudioStream, volume_db: float = 0.0) -> AudioStreamPlayer:
 	if stream == null:
-		return
+		return null
 	var player := AudioStreamPlayer.new()
 	player.stream = stream
 	player.volume_db = volume_db
 	player.finished.connect(player.queue_free)
 	add_child(player)
 	player.play()
+	return player
 
 func _try_parry() -> void:
 	var t := _current_song_time()
@@ -502,13 +529,13 @@ func _resolve_attack(atk: Dictionary, parried: bool, t: float) -> void:
 	atk.resolved_at = t
 	if parried:
 		if parry_sound != null:
-			_play_one_shot(parry_sound, parry_sound_volume_db)
+			_play_one_shot(parry_sound, parry_sound_volume_db + _duck_under_jarona_voice())
 		else:
 			_play_sfx(hit_sfx)
 		_parry_fx.append({"at": t, "pos": atk.resolved_pos})
 	else:
 		if hurt_sound != null:
-			_play_one_shot(hurt_sound, hurt_sound_volume_db)
+			_play_one_shot(hurt_sound, hurt_sound_volume_db + _duck_under_jarona_voice())
 		else:
 			_play_sfx(segment_fail_sfx)
 		_show_status_banner("JARONA HIT! -%d HP" % jarona_damage, ATTACK_COLOR)
@@ -595,17 +622,26 @@ func _setup_parry_hint() -> void:
 	_parry_hint = Label.new()
 	_parry_hint.name = "ParryHint"
 	_parry_hint.theme = UI_THEME
-	_parry_hint.text = "PRESS %s TO PARRY" % _parry_key_name()
+	_parry_hint.text = "PRESS %s\nTO PARRY" % _parry_key_name()
 	_parry_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_parry_hint.add_theme_font_size_override("font_size", 24)
+	_parry_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_parry_hint.add_theme_font_size_override("font_size", 32)
 	_parry_hint.add_theme_color_override("font_color", PARRY_PRESS_COLOR)
 	_parry_hint.add_theme_color_override("font_outline_color", Color8(13, 7, 33))
-	_parry_hint.add_theme_constant_override("outline_size", 10)
+	_parry_hint.add_theme_constant_override("outline_size", 8)
+	_parry_hint.add_theme_constant_override("line_spacing", 6)
+	# Dark box behind it so it reads on the bright sunset.
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.0, 0.0, 0.0, 0.82)
+	box.border_color = PARRY_PRESS_COLOR
+	box.set_border_width_all(4)
+	box.set_content_margin_all(10)
+	_parry_hint.add_theme_stylebox_override("normal", box)
 	_parry_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var left := float(lane_positions[0]) - LANE_WIDTH / 2.0
-	var right := float(lane_positions[-1]) + LANE_WIDTH / 2.0
-	_parry_hint.position = Vector2(left - 200.0, hit_line_y * 0.5 - 90.0)
-	_parry_hint.size = Vector2(right - left + 400.0, 40.0)
+	# Left of Flower Man at head height, between him and the lanes.
+	var hint_size := Vector2(330.0, 104.0)
+	_parry_hint.size = hint_size
+	_parry_hint.position = (_boss_pos() + PARRY_HINT_OFFSET - Vector2(hint_size.x, 0.0)).round()
 	_parry_hint.visible = false
 	hud_root.add_child(_parry_hint)
 
@@ -896,9 +932,6 @@ func _ellipse(center: Vector2, rx: float, ry: float) -> PackedVector2Array:
 ## arriving exactly at the attack's time.
 func _attacker_pos(atk: Dictionary, t: float) -> Vector2:
 	var launch := _launch_pos()
-	if t < atk.start + EMERGE_TIME:
-		var e := clampf(inverse_lerp(atk.start, atk.start + EMERGE_TIME, t), 0.0, 1.0)
-		return _boss_pos().lerp(launch, 1.0 - (1.0 - e) * (1.0 - e))
 	if t < atk.dash_start:
 		return launch
 	var q := clampf(inverse_lerp(atk.dash_start, atk.time, t), 0.0, 1.0)
@@ -914,10 +947,10 @@ func _boss_pos() -> Vector2:
 		return boss_anchor.position
 	return Vector2(float(lane_positions[-1]) + 600.0, hit_line_y / 2.0)
 
-## Where the boss waits before dashing: left of his spot, level with
-## the point he'll strike.
+## Where the boss winds up and dashes from: his own spot (no step
+## toward the highway first; he's close enough to strike from there).
 func _launch_pos() -> Vector2:
-	return Vector2(_boss_pos().x - LAUNCH_OFFSET_FROM_BOSS, _strike_pos().y)
+	return _boss_pos()
 
 ## Boss position after the attack resolves: knocked back toward his spot
 ## when parried, or carried a little further into the highway when it hit.

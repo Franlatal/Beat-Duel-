@@ -20,7 +20,10 @@ extends ChartPlayer
 ##   no stream set in the scene picks up the file of the same name from
 ##   sfx_folder (hit, miss, countdown, countdown_go, segment_pass,
 ##   segment_fail, victory, game_over; .wav, .ogg or .mp3); with no file it
-##   stays silent.
+##   stays silent. "hit" clicks on every Perfect / Good, "hold" loops while
+##   a hold note is held (one per lane, pitched per lane), optional
+##   "hold_end" plays when a hold is finished, and optional countdown_3,
+##   countdown_2, countdown_1 replace "countdown" for that one step.
 ## - Plays the boss's voice clips from voice_folder, by file name: intro,
 ##   segment_pass, segment_fail, victory, game_over, plus one per chart track
 ##   event (an "E jakidding" in the played track plays jakidding.wav at that
@@ -80,6 +83,18 @@ const LANE_LEFT_OFFSET := 400.0
 ## Shortest gap between two miss sounds, in seconds, so a run of missed
 ## notes doesn't turn into a machine gun.
 @export_range(0.0, 1.0, 0.01) var miss_sound_cooldown: float = 0.12
+## Click (the "hit" file in sfx_folder) on every note you hit.
+@export var hit_sounds_enabled: bool = true
+## Extra volume for the note click, in decibels. It plays on every note,
+## so it sits under the music by default.
+@export_range(-40.0, 12.0, 0.5) var hit_sound_volume_db: float = -4.0
+## Loop the "hold" file in sfx_folder while a hold note is held.
+@export var hold_sounds_enabled: bool = true
+## Extra volume for the hold loop, in decibels.
+@export_range(-40.0, 12.0, 0.5) var hold_sound_volume_db: float = -6.0
+## Pitch of the hold loop in each lane (1.0 = as recorded), left to right,
+## so two holds at once sound like a chord instead of one louder tone.
+@export var hold_lane_pitches: Array[float] = [1.0, 1.125, 1.25, 1.333]
 ## Folder with this level's boss voice clips, found by file name: intro,
 ## segment_pass, segment_fail, victory, game_over, and the name of any
 ## chart track event (jakidding.wav plays on "E jakidding"). Add _1, _2,
@@ -155,6 +170,19 @@ var _last_voice_clip: Dictionary = {}
 var _voice_events: Array = []
 var _next_voice_event: int = 0
 var _last_miss_sound_msec: int = -1000000
+## Optional "hold_end" sound (finished hold), made in _setup_sound().
+var hold_end_sfx: AudioStreamPlayer
+## countdown_3 / countdown_2 / countdown_1 by step text ("3", "2", "1").
+var _countdown_step_sounds: Dictionary = {}
+var _countdown_default_stream: AudioStream
+## The "hold" loop, and one player + fade gain (0..1) per lane.
+var _hold_stream: AudioStream
+var _hold_players: Array[AudioStreamPlayer] = []
+var _hold_gains: Array[float] = []
+var _hold_base_db: float = 0.0
+## Fade times of the hold loop, so it never clicks on or off.
+const HOLD_FADE_IN := 0.04
+const HOLD_FADE_OUT := 0.1
 
 func _ready() -> void:
 	level = GameSession.current_level
@@ -197,6 +225,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	_update_hold_sounds(delta)
 	if playback_active and not is_game_over and not is_level_complete:
 		_update_voice_events(_song_time)
 		_check_pending_segment_evaluations()
@@ -230,7 +259,8 @@ func _run_countdown() -> void:
 		countdown_label.pivot_offset = countdown_label.size / 2.0
 		if i == steps.size() - 1 and countdown_go_sfx != null and countdown_go_sfx.stream != null:
 			_play_sfx(countdown_go_sfx)
-		else:
+		elif countdown_sfx != null:
+			countdown_sfx.stream = _countdown_step_sounds.get(steps[i], _countdown_default_stream)
 			_play_sfx(countdown_sfx)
 
 		var tw := create_tween()
@@ -350,7 +380,10 @@ func _on_level_note_judged(result: String, _lane_index: int) -> void:
 			rec_idx = _record_index_for_time(judged_note_time)
 		if rec_idx >= 0 and rec_idx < _segment_records.size():
 			_segment_records[rec_idx].earned_score += credit
-		_play_sfx(hit_sfx)
+		if result == "Held":
+			_play_sfx(hold_end_sfx)   # the head already clicked
+		elif hit_sounds_enabled:
+			_play_hit_sound()
 	else:
 		combo = 0
 		multiplier = 1
@@ -649,6 +682,72 @@ func _play_miss_sound() -> void:
 	miss_sfx.pitch_scale = randf_range(0.94, 1.06)
 	miss_sfx.play()
 
+## Note click, with a tiny random pitch so fast runs don't sound robotic.
+## The player has room for several at once, so chords and fast notes
+## never cut each other off.
+func _play_hit_sound() -> void:
+	if hit_sfx == null or hit_sfx.stream == null:
+		return
+	hit_sfx.pitch_scale = randf_range(0.97, 1.03)
+	hit_sfx.play()
+
+## Fades the hold loop in on every lane that is holding a note right now
+## and out on the rest. Polled each frame, so drops, releases, game over
+## and leaving the level all stop it without extra hooks.
+func _update_hold_sounds(delta: float) -> void:
+	if _hold_stream == null:
+		return
+	var held := {}
+	if hold_sounds_enabled and playback_active and not is_game_over and not is_level_complete:
+		for note in spawned_notes:
+			if note.get_meta("state", -1) == NoteState.HOLDING:
+				held[int(note.get_meta("lane_index", 0))] = true
+	for lane in held:
+		_hold_player(lane)
+	for lane in range(_hold_players.size()):
+		var player := _hold_players[lane]
+		var target := 1.0 if held.has(lane) else 0.0
+		var fade := HOLD_FADE_IN if target > _hold_gains[lane] else HOLD_FADE_OUT
+		_hold_gains[lane] = move_toward(_hold_gains[lane], target, delta / fade)
+		if _hold_gains[lane] > 0.0:
+			player.volume_db = _hold_base_db + linear_to_db(_hold_gains[lane])
+			if not player.playing:
+				player.play()
+		elif player.playing:
+			player.stop()
+
+## The hold loop player for a lane, made the first time it's needed.
+func _hold_player(lane: int) -> AudioStreamPlayer:
+	while _hold_players.size() <= lane:
+		var idx := _hold_players.size()
+		var player := AudioStreamPlayer.new()
+		player.name = "HoldSFX%d" % idx
+		player.stream = _hold_stream
+		player.pitch_scale = hold_lane_pitches[idx] if idx < hold_lane_pitches.size() else 1.0
+		player.volume_db = -80.0
+		_route_to_bus(player, &"SFX")
+		# Fallback for a file that won't loop: start it again.
+		player.finished.connect(func():
+			if _hold_gains[idx] > 0.0:
+				player.play())
+		var parent := get_node_or_null("SFX")
+		(parent if parent != null else self).add_child(player)
+		_hold_players.append(player)
+		_hold_gains.append(0.0)
+	return _hold_players[lane]
+
+## Turns on looping for a sound file loaded at runtime, so the hold sound
+## can be any .wav / .ogg / .mp3 without touching its import settings.
+func _make_looping(stream: AudioStream) -> void:
+	if stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		if wav.loop_mode == AudioStreamWAV.LOOP_DISABLED:
+			wav.loop_begin = 0
+			wav.loop_end = int(round(wav.get_length() * wav.mix_rate))
+			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	elif stream is AudioStreamOggVorbis or stream is AudioStreamMP3:
+		stream.set("loop", true)
+
 ## Plays one of the boss's voice clips for a cue (a file name in
 ## voice_folder without its extension or variant number, e.g. "intro" or
 ## "jakidding"). Does nothing when the folder has no clip for it, so
@@ -685,6 +784,20 @@ func _setup_sound() -> void:
 	segment_fail_sfx = _prepare_sfx(segment_fail_sfx, "segment_fail")
 	victory_sfx = _prepare_sfx(victory_sfx, "victory")
 	game_over_sfx = _prepare_sfx(game_over_sfx, "game_over")
+	hold_end_sfx = _prepare_sfx(get_node_or_null("SFX/HoldEndSFX"), "hold_end")
+	hit_sfx.volume_db += hit_sound_volume_db
+	hit_sfx.max_polyphony = 6
+
+	_countdown_default_stream = countdown_sfx.stream
+	for step in ["3", "2", "1"]:
+		var step_sound: AudioStream = _find_sfx("countdown_" + step)
+		if step_sound != null:
+			_countdown_step_sounds[step] = step_sound
+
+	_hold_stream = _find_sfx("hold")
+	if _hold_stream != null:
+		_make_looping(_hold_stream)
+	_hold_base_db = sfx_volume_db + hold_sound_volume_db
 
 	_voice_player = AudioStreamPlayer.new()
 	_voice_player.name = "BossVoice"
@@ -744,6 +857,10 @@ func _load_voice_cue(cue: String) -> Array:
 				clips.append(variant)
 	_voice_clips[cue] = clips
 	return clips
+
+## A file from sfx_folder by name, or null.
+func _find_sfx(sound_name: String) -> AudioStream:
+	return _find_sound(sfx_folder, sound_name) if sfx_folder != "" else null
 
 ## The sound file called sound_name in a folder, whatever its format.
 func _find_sound(folder: String, sound_name: String) -> AudioStream:

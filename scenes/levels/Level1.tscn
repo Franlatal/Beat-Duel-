@@ -3,6 +3,7 @@
 [ext_resource type="PackedScene" uid="uid://dkulkf830k441" path="res://scenes/levels/BaseLevel.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://82040xrhctow" path="res://scripts/levels/Level1.gd" id="2_l1scr"]
 [ext_resource type="SpriteFrames" path="res://Sprites/flowery/flowery_frames.tres" id="3_flowery"]
+[ext_resource type="Resource" path="res://resources/note_skins/flowery_notes.tres" id="3_ukjja"]
 [ext_resource type="AudioStream" uid="uid://d1bnvi8dbekf2" path="res://sounds/jarona/jarona_1.mp3" id="4_jsfx1"]
 [ext_resource type="AudioStream" uid="uid://g4of4glwlccg" path="res://sounds/jarona/jarona_2.mp3" id="5_jsfx2"]
 [ext_resource type="AudioStream" uid="uid://c7uw8g4mksxjl" path="res://sounds/jarona/jarona_3.mp3" id="6_jsfx3"]
@@ -28,6 +29,7 @@ shader_parameter/edge_shade = 0.78
 
 [node name="Level1" unique_id=313447473 instance=ExtResource("1_base")]
 script = ExtResource("2_l1scr")
+flower_notes = ExtResource("3_ukjja")
 jarona_windup_beats = 3.0
 jarona_dash_beats = 1.0
 parry_window = 0.15
@@ -37,6 +39,7 @@ hurt_sound = ExtResource("8_hurt")
 jarona_sounds_volume_db = 0.0
 parry_sound_volume_db = 0.0
 hurt_sound_volume_db = 0.0
+jarona_voice_duck_db = -9.0
 clear_notes_before_hit_beats = 0.5
 clear_notes_after_hit_beats = 0.25
 show_parry_hint = true
