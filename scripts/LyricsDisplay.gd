@@ -19,9 +19,9 @@ extends Control
 @export var font_size: int = 32
 ## Verse (non-chorus) lines: dim olive yellow, turning pale green when sung.
 @export var unsung_color: Color = Color8(204, 200, 48)
-@export var sung_color: Color = Color8(144, 196, 120)
+@export var sung_color: Color = Color(0.156, 0.565, 0.118, 1.0)
 @export var outline_color: Color = Color(0.0, 0.0, 0.0)
-@export var outline_size: int = 6
+@export var outline_size: int = 9
 ## Seconds the green takes to sweep across one syllable's letters
 ## (shorter if the next syllable comes sooner).
 @export var fill_time: float = 0.25
@@ -163,7 +163,7 @@ func _draw() -> void:
 		_draw_line(line, t, font_size, Vector2.ZERO, [none, none], rim, [none, rim_col])
 		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), 0, [none, none])
 	else:
-		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), outline_size, [outline, outline])
+		_draw_line(line, t, font_size, Vector2.ZERO, _faded(cols, alpha), outline_size, [outline, Color(1, 1, 1, alpha)])
 
 	if show_next_line and _line_index + 1 < _lines.size():
 		var next_baseline := baseline + roundf(font_size * 0.6 + next_line_font_size + outline_size)
