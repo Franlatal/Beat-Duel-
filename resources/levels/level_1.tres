@@ -1,22 +1,20 @@
-[gd_resource type="Resource" script_class="LevelData" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="LevelData" format=3 uid="uid://cclhnf4xjyq6m"]
 
-[ext_resource type="Script" path="res://scripts/LevelData.gd" id="1_leveldata"]
-[ext_resource type="Script" path="res://scripts/DifficultyOption.gd" id="2_diffopt"]
-[ext_resource type="PackedScene" path="res://scenes/levels/Level1.tscn" id="3_scene"]
+[ext_resource type="Script" uid="uid://olaq6c7xundh" path="res://scripts/LevelData.gd" id="1_leveldata"]
+[ext_resource type="Script" uid="uid://dfh8jljcqs7p4" path="res://scripts/DifficultyOption.gd" id="2_diffopt"]
+[ext_resource type="PackedScene" uid="uid://dnb8bsg4krqck" path="res://scenes/levels/Level1.tscn" id="3_scene"]
 
-[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_easy"]
+[sub_resource type="Resource" id="DifficultyOption_l1_easy"]
 script = ExtResource("2_diffopt")
 label = "Easy"
 track_name = "EasySingle"
 lane_count = 2
 
-[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_medium"]
+[sub_resource type="Resource" id="DifficultyOption_l1_medium"]
 script = ExtResource("2_diffopt")
 label = "Medium"
-track_name = "MediumSingle"
-lane_count = 3
 
-[sub_resource type="Resource" script_class="DifficultyOption" id="DifficultyOption_l1_expert"]
+[sub_resource type="Resource" id="DifficultyOption_l1_expert"]
 script = ExtResource("2_diffopt")
 label = "Expert"
 track_name = "ExpertSingle"
@@ -25,14 +23,13 @@ lane_count = 4
 [resource]
 script = ExtResource("1_leveldata")
 id = &"level_1"
-title = "Level 1"
-artist = "Unknown Artist"
-difficulties = Array[DifficultyOption]([SubResource("DifficultyOption_l1_easy"), SubResource("DifficultyOption_l1_medium"), SubResource("DifficultyOption_l1_expert")])
+title = "Flower Man"
+artist = "Toby Fox and Camellia"
+difficulties = Array[ExtResource("2_diffopt")]([SubResource("DifficultyOption_l1_easy"), SubResource("DifficultyOption_l1_medium"), SubResource("DifficultyOption_l1_expert")])
 default_difficulty_index = 2
 bpm = 160.0
 description = "First real track."
 level_scene = ExtResource("3_scene")
-unlocked = true
 preview_audio_path = "res://music/Ogg/song.ogg"
 preview_start = 51.0
 preview_length = 24.0

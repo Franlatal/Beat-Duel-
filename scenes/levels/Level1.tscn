@@ -7,14 +7,18 @@
 [ext_resource type="AudioStream" uid="uid://d1bnvi8dbekf2" path="res://sounds/jarona/jarona_1.mp3" id="4_jsfx1"]
 [ext_resource type="AudioStream" uid="uid://g4of4glwlccg" path="res://sounds/jarona/jarona_2.mp3" id="5_jsfx2"]
 [ext_resource type="AudioStream" uid="uid://c7uw8g4mksxjl" path="res://sounds/jarona/jarona_3.mp3" id="6_jsfx3"]
-[ext_resource type="AudioStream" uid="uid://b41yyeo3rwxf0" path="res://sounds/jarona/snd_glove_launch.wav" id="7_parry"]
-[ext_resource type="AudioStream" uid="uid://4qr5m0210ssg" path="res://sounds/jarona/snd_hurt1.wav" id="8_hurt"]
 [ext_resource type="Script" uid="uid://defjbwmid01wd" path="res://scripts/FallingPetals.gd" id="9_petals"]
 [ext_resource type="Texture2D" uid="uid://bg633la1rmtxc" path="res://Sprites/flowery/petals.png" id="10_petaltex"]
 [ext_resource type="Texture2D" uid="uid://udjrxgxpj22n" path="res://Sprites/flowery/bg_sunset.png" id="11_sunset"]
 [ext_resource type="Texture2D" uid="uid://dq5dgndldy68b" path="res://Sprites/flowery/bg_vine.png" id="12_vine"]
 [ext_resource type="Shader" uid="uid://ddoqi4jviffwl" path="res://shaders/vine_rotate.gdshader" id="13_vineshader"]
 [ext_resource type="Texture2D" uid="uid://bsjmaewltlljj" path="res://Sprites/flowery/bg_vine_surface.png" id="14_vinesurface"]
+
+[sub_resource type="Resource" id="Resource_n5pya"]
+metadata/__load_path__ = "res://sounds/jarona/snd_glove_launch.wav"
+
+[sub_resource type="Resource" id="Resource_kypp1"]
+metadata/__load_path__ = "res://sounds/jarona/snd_hurt1.wav"
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_vine"]
 shader = ExtResource("13_vineshader")
@@ -27,15 +31,15 @@ shader_parameter/speed = 10.0
 shader_parameter/fill_color = Color(0.157, 0.204, 0.063, 1)
 shader_parameter/edge_shade = 0.78
 
-[node name="Level1" unique_id=313447473 instance=ExtResource("1_base")]
+[node name="Flower Man" unique_id=313447473 instance=ExtResource("1_base")]
 script = ExtResource("2_l1scr")
 flower_notes = ExtResource("3_ukjja")
 jarona_windup_beats = 3.0
 jarona_dash_beats = 1.0
 parry_window = 0.15
 jarona_sounds = Array[AudioStream]([ExtResource("4_jsfx1"), ExtResource("5_jsfx2"), ExtResource("6_jsfx3")])
-parry_sound = ExtResource("7_parry")
-hurt_sound = ExtResource("8_hurt")
+parry_sound = SubResource("Resource_n5pya")
+hurt_sound = SubResource("Resource_kypp1")
 jarona_sounds_volume_db = 0.0
 parry_sound_volume_db = 0.0
 hurt_sound_volume_db = 0.0
